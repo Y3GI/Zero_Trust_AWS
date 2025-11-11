@@ -1,0 +1,21 @@
+# Terraform-specific files
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+*.tfvars
+*.override.tf
+.terraformrc
+
+# AWS Credentials (If present, though they should be in CI/CD secrets)
+.aws/
+.secrets/
+
+# IDE files (VS Code)
+.vscode/
+
+# Local build artifacts
+/dist
+/build
