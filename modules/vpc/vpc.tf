@@ -1,3 +1,5 @@
+# Vpc setup and gateway
+
 resource "aws_vpc" "main"{
     cidr_block = var.vpc_cidr
 
@@ -22,6 +24,8 @@ resource "aws_internet_gateway" "igw"{
         }
     )
 }
+
+# Nat setup and gateway
 
 resource "aws_eip" "nat"{
     domain = "vpc"

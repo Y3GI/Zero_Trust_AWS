@@ -1,4 +1,4 @@
-#Base variables
+# Base variables
 
 variable "region" {
     description = "Availability zone for services"
@@ -21,7 +21,7 @@ variable "env"{
     default = "dev"
 }
 
-#VPC variables
+# VPC variables
 
 variable "vpc_cidr" {
     description = "The CIDR block for the entire VPC."
@@ -29,13 +29,15 @@ variable "vpc_cidr" {
     default     = "10.0.0.0/16"
 }
 
-#Subnet variables
+# Availability zone
 
 variable "azs" {
     description = "A list of availability zones to use for subnets."
     type        = list(string)
     default = [ "eu-north-1" ]
 }
+
+# Subnet variables
 
 variable "public_subnets"{
     description = "A list of cidr blocks to use for public subnets"
