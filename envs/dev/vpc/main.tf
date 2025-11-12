@@ -8,10 +8,10 @@ data "aws_availability_zones" "available"{
 }
 
 module "vpc" {
-    source = "../../modules/vpc"
+    source = "../../../modules/vpc"
 
-    environment = "dev"
-    vpc_cidr = "10.10.0.0/16"
+    env = "dev"
+    vpc_cidr = "10.0.0.0/16"
 }
 
 output "vpc_id" {

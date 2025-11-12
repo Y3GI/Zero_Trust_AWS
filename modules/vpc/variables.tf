@@ -3,7 +3,7 @@
 variable "region" {
     description = "Availability zone for services"
     type = string
-    default = "eu-north-1"
+    default = "eu-north-1a"
 }
 
 variable "tags"{
@@ -34,33 +34,40 @@ variable "vpc_cidr" {
 variable "azs" {
     description = "A list of availability zones to use for subnets."
     type        = list(string)
-    default = [ "eu-north-1" ]
+    default = [ "eu-north-1a" ]
 }
 
 # Subnet variables
 
 variable "public_subnets"{
     description = "A list of cidr blocks to use for public subnets"
-    type = map(string)
+    type = map(object({
+        cidr = string
+        az   = string
+    }))
     default = {
         public_1 = {
-            cidr = cidrsubnet(var.vpc_cidr, 3, 1)
-            az = "eu-north-1"
+            cidr = "10.0.1.0/24"
+            az = "eu-north-1a"
         }
     }
 }
 
 variable "private_subnets"{
     description = "A list of cidr blocks to use for public subnets"
-    type = map(string)
+    type = map(object({
+        cidr = string
+        az   = string
+    }))
     default = {
         private_1 = {
-            cidr = cidrsubnet(var.vpc_cidr, 3, 2)
-            az = "eu-north-1"
+            cidr = "10.0.2.0/24"
+            az = "eu-north-1a"
         }
     }
 }
 
 variable "create_isolated_subnet" {
-    type = true
+    type = bool
+    default = true
 }

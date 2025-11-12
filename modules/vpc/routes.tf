@@ -33,13 +33,13 @@ resource "aws_route_table" "private_rt"{
 # Routes
 
 resource "aws_route_table_association" "public"{
-    count = length(var.public_subnets)
-    subnet_id = aws_subnet.public[count.index].id
+    for_each = aws_subnet.public
+    subnet_id = each.value.id
     route_table_id = aws_route_table.public_rt.id
 }
 
 resource "aws_route_table_association" "private"{
-    count = length(var.private_subnets)
-    subnet_id = aws_subnet.private[count.index].id
+    for_each = aws_subnet.private
+    subnet_id = each.value.id
     route_table_id = aws_route_table.private_rt.id
 }

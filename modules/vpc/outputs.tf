@@ -5,15 +5,15 @@ output "vpc_id" {
 
 output "public_subnet_ids" {
     description = "List of IDs for the public subnets (IGW access)."
-    value       = aws_subnet.public[*].id
+    value       = [for subnet in aws_subnet.public : subnet.id]
 }
 
 output "private_subnet_ids" {
     description = "List of IDs for the private subnets (Application tier)."
-    value       = aws_subnet.private[*].id
+    value       = [for subnet in aws_subnet.private : subnet.id]
 }
 
 output "isolated_subnet_ids" {
     description = "List of IDs for the restricted subnets (Database/Sensitive tier)."
-    value       = aws_subnet.isolated[*].id
+    value       = [for subnet in aws_subnet.isolated : subnet.id]
 }
