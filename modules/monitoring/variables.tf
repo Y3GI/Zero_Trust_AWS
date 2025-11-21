@@ -31,3 +31,15 @@ variable "email" {
 variable "limit_amount"{
     default = 100.00
 }
+
+variable "vpc_id" {
+    description = "The VPC ID from the networking module"
+    type        = string
+    default = module.vpc.vpc_id
+}
+
+variable "flow_log_role_arn" {
+    description = "The ARN of the IAM role created in the security module"
+    type        = string
+    default = module.security.flow_log_role_arn
+}

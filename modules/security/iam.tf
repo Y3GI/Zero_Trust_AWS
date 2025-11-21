@@ -22,8 +22,9 @@ resource "aws_iam_role" "app_instance_role" {
 }
 
 # 3. Policy for Secrets and Encryption (KMS and Secrets Manager)
-resource "aws_iam_policy" "app_secrets_policy" {
+resource "aws_iam_role_policy" "app_secrets_policy" {
     name   = "${var.env}-ZT-SecretsKMS-Policy"
+    role = aws_iam_role.app_instance_role.id
     policy = jsonencode({
         Version = "2012-10-17",
         Statement = [
@@ -46,8 +47,9 @@ resource "aws_iam_policy" "app_secrets_policy" {
 }
 
 # 4. Policy for CloudWatch Logging (Required by all applications)
-resource "aws_iam_policy" "app_logging_policy" {
+resource "aws_iam_role_policy" "app_logging_policy" {
     name   = "${var.env}-ZT-Logging-Policy"
+    role  = aws_iam_role.app_instance_role.id
     policy = jsonencode({
         Version = "2012-10-17",
         Statement = [
@@ -65,25 +67,85 @@ resource "aws_iam_policy" "app_logging_policy" {
     })
 }
 
-# 5. Attach Policies to the Role
-resource "aws_iam_role_policy_attachment" "secrets_attach" {
-    role       = aws_iam_role.app_instance_role.name
-    policy_arn = aws_iam_policy.app_secrets_policy.arn
+#-------------------------------------------------------------------------------
+# Trust Policy: Trust the VPC Flow Logs service
+data "aws_iam_policy_document" "flow_log_trust" {
+    statement {
+        actions = ["sts:AssumeRole"]
+        principals {
+            type        = "Service"
+            identifiers = ["vpc-flow-logs.amazonaws.com"]
+        }
+    }
 }
 
-resource "aws_iam_role_policy_attachment" "logging_attach" {
-    role       = aws_iam_role.app_instance_role.name
-    policy_arn = aws_iam_policy.app_logging_policy.arn
+# The Role
+resource "aws_iam_role" "vpc_flow_log_role" {
+    name               = "${var.env}-ZT-FlowLog-Role"
+    assume_role_policy = data.aws_iam_policy_document.flow_log_trust.json
+    description        = "Role allowing VPC Flow Logs to write to CloudWatch."
+    
+    tags = merge(var.tags, { Service = "Monitoring" })
 }
 
+# The Policy (Permission to write logs)
+resource "aws_iam_role_policy" "vpc_flow_log_policy" {
+    name = "${var.env}-ZT-FlowLog-Policy"
+    role = aws_iam_role.vpc_flow_log_role.id
+    policy = jsonencode({
+            Version = "2012-10-17",
+            Statement = [{
+                Action = [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams"
+                ],
+            Effect   = "Allow",
+            Resource = "*" # IAM is global, so we allow writing to any log group in this account
+            }]
+        })
+}
+
+#-------------------------------------------------------------------------------
+# Trust Policy: Trust the CloudTrail service
+data "aws_iam_policy_document" "cloudtrail_trust" {
+    statement {
+        actions = ["sts:AssumeRole"]
+        principals {
+            type        = "Service"
+            identifiers = ["cloudtrail.amazonaws.com"]
+        }
+    }
+}
+
+# The Role
+resource "aws_iam_role" "cloudtrail_role" {
+    name               = "${var.env}-ZT-CloudTrail-Role"
+    assume_role_policy = data.aws_iam_policy_document.cloudtrail_trust.json
+    description        = "Role allowing CloudTrail to write to CloudWatch Logs."
+
+    tags = merge(var.tags, { Service = "Monitoring" })
+}
+
+# The Policy
+resource "aws_iam_role_policy" "cloudtrail_policy" {
+    name = "${var.env}-ZT-CloudTrail-Policy"
+    role = aws_iam_role.cloudtrail_role.id
+    policy = jsonencode({
+        Version = "2012-10-17",
+        Statement = [{
+            Action   = ["logs:CreateLogStream", "logs:PutLogEvents"],
+            Effect   = "Allow",
+            Resource = "arn:aws:logs:*:*:log-group:/aws/cloudtrail/${var.env}*" 
+        }]
+    })
+}
+
+#-------------------------------------------------------------------------------
 # 6. Instance Profile (used to link the role to the EC2 instance)
 resource "aws_iam_instance_profile" "app_instance_profile" {
     name = aws_iam_role.app_instance_role.name
     role = aws_iam_role.app_instance_role.name
-}
-
-# Output the profile name for use in the 'compute' module
-output "app_instance_profile_name" {
-    value = aws_iam_instance_profile.app_instance_profile.name
-    description = "The name of the Instance Profile to attach to EC2 resources."
 }
