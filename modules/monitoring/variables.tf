@@ -43,3 +43,9 @@ variable "flow_log_role_arn" {
     type        = string
     default = module.security.flow_log_role_arn
 }
+
+variable "cloudtrail_role_arn" {
+    description = "The ARN of the IAM role created in the security module for CloudTrail"
+    type        = string
+    default = module.security.cloudtrail_role_arn
+}
