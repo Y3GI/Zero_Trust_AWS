@@ -17,3 +17,13 @@ output "isolated_subnet_ids" {
     description = "List of IDs for the restricted subnets (Database/Sensitive tier)."
     value       = [for subnet in aws_subnet.isolated : subnet.id]
 }
+
+output "public_rt_id" {
+    description = "ID of the public route table."
+    value       = aws_route_table.public_rt.id
+}
+
+output "private_rt_id" {
+    description = "ID of the private route table."
+    value       = aws_route_table.private_rt.id
+}

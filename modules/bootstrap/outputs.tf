@@ -1,3 +1,3 @@
-output "s3_cloudtrail_id" {
-    value = aws_s3_bucket.aws_cloudtrail.id
+output "cloudtrail_bucket_id" {
+    value = aws_s3_bucket.cloudtrail_bucket.id
 }

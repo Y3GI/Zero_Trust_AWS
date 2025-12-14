@@ -12,7 +12,7 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
 
 resource "aws_flow_log" "main" {
     iam_role_arn = var.flow_log_role_arn
-    log_destination = aws_cloudwatch_log_group.flow_logs_group.arn
+    log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
     vpc_id = var.vpc_id
     traffic_type = "ALL"
 }

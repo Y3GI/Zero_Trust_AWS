@@ -20,3 +20,40 @@ variable "env"{
     type = string
     default = "dev"
 }
+
+variable "vpc_id" {
+    description = "The ID of the VPC where compute resources will be deployed."
+    type        = string
+}
+
+variable "private_subnet_id" {
+    description = "A list of subnet IDs within the VPC for deploying compute resources."
+    type        = string
+}
+
+variable "public_subnet_id" {
+    description = "A list of subnet IDs within the VPC for deploying compute resources."
+    type        = string
+}
+
+variable "bastion_allowed_cidr" {
+    description = "The CIDR block that is allowed to access the bastion host."
+    type        = string
+    default = "10.0.1.100/24"
+}
+
+variable "app_instance_profile_name" {
+    description = "The name of the IAM instance profile for application instances."
+    type        = string
+}
+
+variable "kms_key_arn" {
+    description = "The ARN of the KMS key for encrypting application data."
+    type        = string
+}
+
+variable "instance_type" {
+    description = "The EC2 instance type for application instances."
+    type        = string
+    default     = "t3.micro"
+}

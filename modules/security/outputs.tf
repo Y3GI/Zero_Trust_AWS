@@ -40,3 +40,9 @@ output "cloudtrail_role_name" {
     description = "Name of the IAM role for CloudTrail"
     value       = aws_iam_role.cloudtrail_role.name
 }
+
+#KMS Key Outputs
+output "kms_key_arn" {
+    description = "ARN of the KMS key used for encrypting resources"
+    value       = aws_kms_key.main.arn
+}
