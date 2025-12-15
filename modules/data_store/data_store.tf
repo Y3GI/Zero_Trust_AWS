@@ -25,19 +25,3 @@ resource "aws_dynamodb_table" "main" {
         Service = "DataStore"
     })
 }
-
-# 2. VPC Endpoint for DynamoDB (Gateway Type)
-# This routes traffic from your VPC to DynamoDB privately, bypassing the NAT/Internet.
-resource "aws_vpc_endpoint" "dynamodb" {
-    vpc_id       = var.vpc_id
-    service_name = "com.amazonaws.${var.region}.dynamodb"
-    vpc_endpoint_type = "Gateway"
-
-    # Attach to Route Tables (Private Subnets)s
-    # This automatically adds a route to the endpoint for DynamoDB traffic.
-    route_table_ids = var.route_table_ids
-
-    tags = merge(var.tags, {
-        Name = "${var.env}-dynamodb-endpoint"
-    })
-}
