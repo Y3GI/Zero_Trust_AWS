@@ -2,7 +2,7 @@ terraform {
     required_providers {
         aws = {
             source  = "hashicorp/aws"
-            version = "~> 5.0"
+            version = ">= 5.0"
         }
     }
 }
@@ -14,7 +14,7 @@ resource "aws_vpc_endpoint" "dynamodb" {
     vpc_endpoint_type = "Gateway"
 
     # This automatically adds a route to the endpoint for DynamoDB traffic.
-    route_table_ids = var.route_table_ids
+    route_table_ids = [ var.private_rt_id, var.public_rt_id ]
 
     tags = merge(var.tags, {
         Name = "${var.env}-dynamodb-endpoint"
@@ -26,7 +26,7 @@ resource "aws_vpc_endpoint" "s3" {
     vpc_id              = var.vpc_id
     service_name        = "com.amazonaws.${var.region}.s3"
     vpc_endpoint_type   = "Gateway"
-    route_table_ids     = var.route_table_ids
+    route_table_ids     = [ var.private_rt_id, var.public_rt_id ]
 
     tags = merge(var.tags, {
         Name    = "${var.env}-s3-endpoint"
@@ -162,7 +162,7 @@ resource "aws_vpc_endpoint" "kms" {
 resource "aws_security_group" "vpc_endpoints" {
     name        = "${var.env}-vpc-endpoints-sg"
     description = "Security group for VPC Endpoints - allows HTTPS from VPC"
-    vpc_id      = var.vpc_id
+    vpc_id      = var.vpc_id 
 
     ingress {
         description = "HTTPS from VPC"

@@ -63,7 +63,7 @@ resource "aws_networkfirewall_firewall" "main" {
     subnet_change_protection = false
 
     subnet_mapping {
-        subnet_id = var.subnet_id
+        subnet_id = var.public_subnet_ids[0]
     }
 
     tags = merge(var.tags, {

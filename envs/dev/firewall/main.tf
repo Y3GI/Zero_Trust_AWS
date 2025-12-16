@@ -14,10 +14,12 @@ data "terraform_remote_state" "vpc" {
 module "firewall" {
     source = "../../../modules/firewall"
 
-    env      = "dev"
-    region   = "eu-north-1"
-    vpc_id   = data.terraform_remote_state.vpc.outputs.vpc_id
-    subnet_id = data.terraform_remote_state.vpc.outputs.public_subnet_ids[0]
+    env                 = "dev"
+    region              = "eu-north-1"
+    
+    # Pass VPC configuration (use try() to handle destroyed dependencies during destroy)
+    vpc_id              = try(data.terraform_remote_state.vpc.outputs.vpc_id, "vpc-destroyed")
+    public_subnet_ids   = try(data.terraform_remote_state.vpc.outputs.public_subnet_ids, [])
 }
 
 output "firewall_id" {

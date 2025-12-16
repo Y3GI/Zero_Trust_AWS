@@ -22,13 +22,11 @@ variable "env"{
 }
 
 variable "vpc_id" {
-    description = "The VPC ID from the networking module"
+    description = "The VPC ID where the firewall will be deployed"
     type        = string
-    default = module.vpc.vpc_id
 }
 
-variable "subnet_id"{
-    description = "A list of subnet IDs within the VPC for deploying the firewall."
-    type        = string
-    default = module.vpc.public_subnet_ids
+variable "public_subnet_ids" {
+    description = "List of public subnet IDs for the firewall deployment"
+    type        = list(string)
 }

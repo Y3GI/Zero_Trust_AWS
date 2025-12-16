@@ -28,13 +28,16 @@ data "terraform_remote_state" "bootstrap" {
 module "monitoring" {
     source = "../../../modules/monitoring"
 
-    env                 = "dev"
-    region              = "eu-north-1"
-    email               = "547283@student.fontys.nl"
-    limit_amount        = 100.00
-    vpc_id              = data.terraform_remote_state.vpc.outputs.vpc_id
-    flow_log_role_arn   = data.terraform_remote_state.security.outputs.flow_log_role_arn
-    cloudtrail_role_arn = data.terraform_remote_state.security.outputs.cloudtrail_role_arn
+    env                     = "dev"
+    region                  = "eu-north-1"
+    email                   = "547283@student.fontys.nl"
+    limit_amount            = 100.00
+    
+    # Pass dependencies from other modules (use try() to handle destroyed dependencies during destroy)
+    vpc_id                  = try(data.terraform_remote_state.vpc.outputs.vpc_id, "vpc-destroyed")
+    flow_log_role_arn       = try(data.terraform_remote_state.security.outputs.flow_log_role_arn, "arn:aws:iam::000000000000:role/destroyed")
+    cloudtrail_role_arn     = try(data.terraform_remote_state.security.outputs.cloudtrail_role_arn, "arn:aws:iam::000000000000:role/destroyed")
+    cloudtrail_bucket_name  = try(data.terraform_remote_state.bootstrap.outputs.cloudtrail_bucket_name, "bucket-destroyed")
 }
 
 output "budget_id" {

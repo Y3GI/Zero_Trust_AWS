@@ -21,21 +21,7 @@ variable "env"{
     default = "dev"
 }
 
-variable "vpc_id" {
-    description = "The VPC ID from the networking module"
-    type        = string
-    default = module.vpc.vpc_id
-}
-
 variable "kms_key_arn" {
-    description = "The ARN of the KMS key for encrypting the DynamoDB table."
+    description = "ARN of KMS key for DynamoDB encryption"
     type        = string
-    default = module.security.kms_key_arn
-}
-
-variable "route_table_ids" {
-    description = "The ID of the route table associated with the data store."
-    type        = list(string)
-    default = [ module.vpc.private_rt_id, module.vpc.public_rt_id ]
-
 }

@@ -21,6 +21,26 @@ variable "env"{
     default = "dev"
 }
 
+variable "vpc_id" {
+    description = "VPC ID for CloudWatch Flow Logs"
+    type        = string
+}
+
+variable "flow_log_role_arn" {
+    description = "ARN of IAM role for VPC Flow Logs"
+    type        = string
+}
+
+variable "cloudtrail_role_arn" {
+    description = "ARN of IAM role for CloudTrail"
+    type        = string
+}
+
+variable "cloudtrail_bucket_name" {
+    description = "Name of S3 bucket for CloudTrail logs"
+    type        = string
+}
+
 variable "email" {
     type = string
     default = "547283@student.fontys.nl"
@@ -30,22 +50,4 @@ variable "email" {
 
 variable "limit_amount"{
     default = 100.00
-}
-
-variable "vpc_id" {
-    description = "The VPC ID from the networking module"
-    type        = string
-    default = module.vpc.vpc_id
-}
-
-variable "flow_log_role_arn" {
-    description = "The ARN of the IAM role created in the security module"
-    type        = string
-    default = module.security.flow_log_role_arn
-}
-
-variable "cloudtrail_role_arn" {
-    description = "The ARN of the IAM role created in the security module for CloudTrail"
-    type        = string
-    default = module.security.cloudtrail_role_arn
 }

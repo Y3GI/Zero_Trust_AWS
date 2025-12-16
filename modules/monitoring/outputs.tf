@@ -23,17 +23,17 @@ output "cloudwatch_log_group_arn" {
 # CloudTrail Log Group Outputs
 output "cloudtrail_log_group_id" {
     description = "The ID of the CloudWatch log group for CloudTrail events"
-    value       = aws_cloudwatch_logs_group.cloudtrail_events.id
+    value       = aws_cloudwatch_log_group.cloudtrail_events.id
 }
 
 output "cloudtrail_log_group_name" {
     description = "The name of the CloudWatch log group for CloudTrail events"
-    value       = aws_cloudwatch_logs_group.cloudtrail_events.name
+    value       = aws_cloudwatch_log_group.cloudtrail_events.name
 }
 
 output "cloudtrail_log_group_arn" {
     description = "The ARN of the CloudWatch log group for CloudTrail events"
-    value       = aws_cloudwatch_logs_group.cloudtrail_events.arn
+    value       = aws_cloudwatch_log_group.cloudtrail_events.arn
 }
 
 # Flow Logs Outputs

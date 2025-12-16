@@ -90,15 +90,68 @@ destroy_module() {
         return 0
     fi
     
+    # Prompt for secrets module variables
+    if [[ "$module" == "secrets" ]]; then
+        print_header "Secrets Module - Required Variables"
+        
+        # Prompt for database password
+        read -sp "Enter database password (same as used during deployment): " DB_PASSWORD
+        echo ""
+        if [[ -z "$DB_PASSWORD" ]]; then
+            print_error "Database password cannot be empty"
+            return 1
+        fi
+        
+        # Prompt for API key 1
+        read -sp "Enter API Key 1: " API_KEY_1
+        echo ""
+        if [[ -z "$API_KEY_1" ]]; then
+            print_error "API Key 1 cannot be empty"
+            return 1
+        fi
+        
+        # Prompt for API key 2
+        read -sp "Enter API Key 2: " API_KEY_2
+        echo ""
+        if [[ -z "$API_KEY_2" ]]; then
+            print_error "API Key 2 cannot be empty"
+            return 1
+        fi
+        
+        # Export as Terraform variables
+        export TF_VAR_db_password="$DB_PASSWORD"
+        export TF_VAR_api_key_1="$API_KEY_1"
+        export TF_VAR_api_key_2="$API_KEY_2"
+        
+        print_success "Secrets variables configured"
+        echo ""
+    fi
+    
     print_info "Destroying: $module"
     
     # Destroy the configuration
     if terraform -chdir="$module_path" destroy -auto-approve -no-color > /tmp/${module}_destroy.log 2>&1; then
         print_success "$module destroyed"
+        
+        # Clear sensitive variables
+        if [[ "$module" == "secrets" ]]; then
+            unset TF_VAR_db_password
+            unset TF_VAR_api_key_1
+            unset TF_VAR_api_key_2
+        fi
+        
         return 0
     else
         print_error "$module destruction failed"
         print_info "Check logs: cat /tmp/${module}_destroy.log"
+        
+        # Clear sensitive variables on failure
+        if [[ "$module" == "secrets" ]]; then
+            unset TF_VAR_db_password
+            unset TF_VAR_api_key_1
+            unset TF_VAR_api_key_2
+        fi
+        
         return 1
     fi
 }

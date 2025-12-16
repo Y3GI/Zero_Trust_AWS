@@ -54,3 +54,14 @@ output "vpc_endpoints_security_group_id" {
     description = "The ID of the security group for VPC endpoints"
     value       = aws_security_group.vpc_endpoints.id
 }
+
+# VPC Endpoint for DynamoDB Outputs
+output "dynamodb_vpc_endpoint_id" {
+    description = "The ID of the DynamoDB VPC endpoint"
+    value       = aws_vpc_endpoint.dynamodb.id
+}
+
+output "dynamodb_vpc_endpoint_arn" {
+    description = "The ARN of the DynamoDB VPC endpoint"
+    value       = aws_vpc_endpoint.dynamodb.arn
+}

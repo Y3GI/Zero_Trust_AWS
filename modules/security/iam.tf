@@ -1,15 +1,4 @@
-# 1. IAM Role Trust Policy: Allows the EC2 Service to assume this role.
-data "aws_iam_policy_document" "ec2_assume_role" {
-    statement {
-        actions = ["sts:AssumeRole"]
-        principals {
-            type        = "Service"
-            identifiers = ["ec2.amazonaws.com"]
-        }
-    }
-}
-
-# 2. The IAM Role for Application Instances
+# 1. The IAM Role for Application Instances
 resource "aws_iam_role" "app_instance_role" {
     name               = "${var.env}-ZT-App-Role"
     assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
@@ -21,7 +10,7 @@ resource "aws_iam_role" "app_instance_role" {
     })
 }
 
-# 3. Policy for Secrets and Encryption (KMS and Secrets Manager)
+# 2. Policy for Secrets and Encryption (KMS and Secrets Manager)
 resource "aws_iam_role_policy" "app_secrets_policy" {
     name   = "${var.env}-ZT-SecretsKMS-Policy"
     role = aws_iam_role.app_instance_role.id
@@ -46,7 +35,7 @@ resource "aws_iam_role_policy" "app_secrets_policy" {
     })
 }
 
-# 4. Policy for CloudWatch Logging (Required by all applications)
+# 3. Policy for CloudWatch Logging (Required by all applications)
 resource "aws_iam_role_policy" "app_logging_policy" {
     name   = "${var.env}-ZT-Logging-Policy"
     role  = aws_iam_role.app_instance_role.id
@@ -144,7 +133,7 @@ resource "aws_iam_role_policy" "cloudtrail_policy" {
 }
 
 #-------------------------------------------------------------------------------
-# 6. Instance Profile (used to link the role to the EC2 instance)
+# 4. Instance Profile (used to link the role to the EC2 instance)
 resource "aws_iam_instance_profile" "app_instance_profile" {
     name = aws_iam_role.app_instance_role.name
     role = aws_iam_role.app_instance_role.name

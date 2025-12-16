@@ -11,15 +11,13 @@ variable "env" {
 }
 
 variable "kms_key_id" {
-    description = "KMS key ID for encrypting secrets"
+    description = "ID of KMS key for Secrets Manager encryption"
     type        = string
-    default     = module.security.kms_key_id
 }
 
-variable "app_role_arn" {
-    description = "ARN of the application IAM role (for accessing secrets)"
+variable "app_instance_role_arn" {
+    description = "ARN of IAM role for app instances"
     type        = string
-    default     = module.security.app_instance_role_arn
 }
 
 variable "db_username" {

@@ -72,8 +72,3 @@ output "nat_gateway_public_ip" {
     description = "The Elastic IP address of the NAT Gateway."
     value       = aws_eip.nat.public_ip
 }
-
-output "nat_gateway_arn" {
-    description = "The ARN of the NAT Gateway."
-    value       = aws_nat_gateway.nat_gtw.arn
-}

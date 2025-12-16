@@ -36,7 +36,7 @@ resource "aws_security_group" "bastion_sg" {
 
 resource "aws_instance" "bastion" {
     ami           = data.aws_ami.amazon_linux.id
-    instance_type = "t2.micro"
+    instance_type = "t3.micro"
 
     # Deploy to the first PUBLIC subnet
     subnet_id                   = var.public_subnet_ids[0]

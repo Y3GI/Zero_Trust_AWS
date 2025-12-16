@@ -10,33 +10,35 @@ variable "env" {
     default     = "dev"
 }
 
-variable "vpc_id" {
-    description = "The ID of the VPC"
-    type        = string
-    default     = module.vpc.vpc_id 
-}
-
 variable "vpc_cidr" {
     description = "The CIDR block of the VPC"
     type        = string
     default     = "10.0.0.0/16"
 }
 
-variable "private_subnet_ids" {
-    description = "List of private subnet IDs for Interface endpoints"
-    type        = list(string)
+variable "vpc_id" {
+    description = "VPC ID for VPC endpoints"
+    type        = string
 }
 
-variable "route_table_ids" {
-    description = "List of route table IDs for Gateway endpoints"
+variable "private_rt_id" {
+    description = "ID of private route table"
+    type        = string
+}
+
+variable "public_rt_id" {
+    description = "ID of public route table"
+    type        = string
+}
+
+variable "private_subnet_ids" {
+    description = "IDs of private subnets"
     type        = list(string)
-    default = [ module.vpc.private_rt_id, module.vpc.public_rt_id ]
 }
 
 variable "cloudtrail_bucket_name" {
-    description = "Name of the CloudTrail S3 bucket"
+    description = "Name of S3 bucket for CloudTrail logs"
     type        = string
-    default = module.security.cloudtrail_bucket_name
 }
 
 variable "tags" {
