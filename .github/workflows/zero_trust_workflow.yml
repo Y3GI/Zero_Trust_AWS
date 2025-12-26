@@ -56,5 +56,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.7.5
 
+      - name: Terraform deploy
+        if: ${{ github.event.inputs.actions == 'apply' }}
+        working-directory: ./scripts/
+        run: ./deploy.sh
+
+      - name: Terraform destroy
+        if: ${{ github.event.inputs.actions == 'destroy' }}
+        working-directory: ./scripts/
+        run: ./destroy.sh
