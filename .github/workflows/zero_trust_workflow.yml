@@ -37,7 +37,7 @@ jobs:
           terraform_version: 1.7.5
       
       - name: Terraform validate
-        working-directory: ./Zero_Trust_AWS/scripts/
+        working-directory: ./scripts/
         run: ./build.sh
 
       - name: Initialize CodeQL
