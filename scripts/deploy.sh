@@ -104,42 +104,11 @@ deploy_module() {
         return 1
     fi
     
-    # Prompt for secrets module variables
-    if [[ "$module" == "secrets" ]]; then
-        print_header "Secrets Module - Required Variables"
-        
-        # Prompt for database password
-        read -sp "Enter database password (will be used for db_credentials secret): " DB_PASSWORD
-        echo ""
-        if [[ -z "$DB_PASSWORD" ]]; then
-            print_error "Database password cannot be empty"
-            return 1
-        fi
-        
-        # Prompt for API key 1
-        read -sp "Enter API Key 1: " API_KEY_1
-        echo ""
-        if [[ -z "$API_KEY_1" ]]; then
-            print_error "API Key 1 cannot be empty"
-            return 1
-        fi
-        
-        # Prompt for API key 2
-        read -sp "Enter API Key 2: " API_KEY_2
-        echo ""
-        if [[ -z "$API_KEY_2" ]]; then
-            print_error "API Key 2 cannot be empty"
-            return 1
-        fi
-        
-        # Export as Terraform variables
-        export TF_VAR_db_password="$DB_PASSWORD"
-        export TF_VAR_api_key_1="$API_KEY_1"
-        export TF_VAR_api_key_2="$API_KEY_2"
-        
-        print_success "Secrets variables configured"
-        echo ""
+    # Handle monitoring module - check and import existing log group
+    if [[ "$module" == "monitoring" ]]; then
+        handle_monitoring_log_group
     fi
+    
     
     print_info "Deploying: $module"
     
@@ -158,26 +127,10 @@ deploy_module() {
     # Apply the configuration
     if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
         print_success "$module deployed"
-        
-        # Clear sensitive variables
-        if [[ "$module" == "secrets" ]]; then
-            unset TF_VAR_db_password
-            unset TF_VAR_api_key_1
-            unset TF_VAR_api_key_2
-        fi
-        
         return 0
     else
         print_error "$module deployment failed"
         print_info "Check logs: cat /tmp/${module}_apply.log"
-        
-        # Clear sensitive variables on failure
-        if [[ "$module" == "secrets" ]]; then
-            unset TF_VAR_db_password
-            unset TF_VAR_api_key_1
-            unset TF_VAR_api_key_2
-        fi
-        
         return 1
     fi
 }
@@ -225,6 +178,35 @@ get_module_status() {
         echo "DEPLOYED"
     else
         echo "NOT_DEPLOYED"
+    fi
+}
+
+# Function to handle existing CloudWatch log groups
+handle_monitoring_log_group() {
+    local log_group_name="/aws/vpc/flow-logs/dev"
+    local region="eu-north-1"
+    local module_path="$ENVS_DEV_DIR/monitoring"
+    
+    print_info "Checking for existing CloudWatch log group: $log_group_name"
+    
+    # Check if log group exists in AWS
+    if aws logs describe-log-groups \
+        --log-group-name-prefix "$log_group_name" \
+        --region "$region" 2>/dev/null | grep -q "\"logGroupName\": \"$log_group_name\""; then
+        
+        print_info "Log group exists in AWS"
+        
+        # Try to import it silently
+        terraform -chdir="$module_path" import -no-color module.monitoring.aws_cloudwatch_log_group.vpc_flow_logs "$log_group_name" > /dev/null 2>&1 || true
+        
+        # If it's in state and already exists in AWS, that's fine
+        if terraform -chdir="$module_path" state list 2>/dev/null | grep -q "module.monitoring.aws_cloudwatch_log_group.vpc_flow_logs"; then
+            print_success "Log group already managed by Terraform"
+        else
+            print_warning "Log group exists in AWS but not in Terraform - will adopt during apply"
+        fi
+    else
+        print_info "Log group does not exist in AWS - will be created during apply"
     fi
 }
 

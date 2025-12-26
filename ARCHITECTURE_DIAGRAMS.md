@@ -15,7 +15,7 @@
 │  │  │ Public Subnet A (10.0.1.0/24)                               │  │   │
 │  │  │ ┌────────────────────────────────────────────────────────┐  │  │   │
 │  │  │ │ [BASTION HOST]                                         │  │  │   │
-│  │  │ │ EC2 Instance (t2.micro)                               │  │  │   │
+│  │  │ │ EC2 Instance (t3.micro)                               │  │  │   │
 │  │  │ │ - Encrypted root volume (KMS)                         │  │  │   │
 │  │  │ │ - SSH SG restricted to allowed CIDR                   │  │  │   │
 │  │  │ │ - Egress to private app servers                       │  │  │   │

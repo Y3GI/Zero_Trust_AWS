@@ -7,17 +7,17 @@ output "budget_id" {
 # CloudWatch Log Group Outputs
 output "cloudwatch_log_group_id" {
     description = "The ID of the CloudWatch log group for VPC Flow Logs"
-    value       = aws_cloudwatch_log_group.vpc_flow_logs.id
+    value       = data.aws_cloudwatch_log_group.vpc_flow_logs.id
 }
 
 output "cloudwatch_log_group_name" {
     description = "The name of the CloudWatch log group for VPC Flow Logs"
-    value       = aws_cloudwatch_log_group.vpc_flow_logs.name
+    value       = data.aws_cloudwatch_log_group.vpc_flow_logs.name
 }
 
 output "cloudwatch_log_group_arn" {
     description = "The ARN of the CloudWatch log group for VPC Flow Logs"
-    value       = aws_cloudwatch_log_group.vpc_flow_logs.arn
+    value       = data.aws_cloudwatch_log_group.vpc_flow_logs.arn
 }
 
 # CloudTrail Log Group Outputs

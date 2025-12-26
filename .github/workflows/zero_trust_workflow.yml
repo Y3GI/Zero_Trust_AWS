@@ -1,0 +1,60 @@
+name: Zero Trust AWS Workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      actions:
+        description: "apply or destroy"
+        required: true
+        default: "apply"
+        type: choice
+        options: [apply, destroy]
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+jobs:
+  quality_check:
+    name: Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Terraform cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/terraform.lock.hcl') }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.7.5
+      
+      - name: Terraform validate
+        working-directory: ./Zero_Trust_AWS/scripts/
+        run: ./build.sh
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: terraform
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  terraform_operations:
+    needs: quality_check
+    name: Terraform Operations
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v3
+
+
+
