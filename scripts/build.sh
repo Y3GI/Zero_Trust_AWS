@@ -79,6 +79,20 @@ print_success "AWS credentials valid (Account: $ACCOUNT_ID, Region: $REGION)"
 
 echo ""
 
+# Use AWS credentials from environment (provided by GitHub Actions)
+# No need to configure credentials manually - they're injected by the workflow
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "❌ Error: AWS credentials not found in environment"
+    echo "This script expects AWS credentials to be provided via environment variables:"
+    echo "  - AWS_ACCESS_KEY_ID"
+    echo "  - AWS_SECRET_ACCESS_KEY"
+    echo "  - AWS_SESSION_TOKEN (if using temporary credentials)"
+    exit 1
+fi
+
+echo "✅ Using AWS credentials from environment"
+echo "Region: ${AWS_DEFAULT_REGION:-us-east-1}"
+
 # Format Terraform files
 print_header "Step 2: Formatting Terraform Code"
 

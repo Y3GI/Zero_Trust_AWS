@@ -25,6 +25,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
+
       - name: Terraform cache
         uses: actions/cache@v3
         with:
@@ -39,6 +45,29 @@ jobs:
       - name: Terraform validate
         working-directory: ./scripts/
         run: ./build.sh
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Run Terratest Integration Tests
+        run: go test -v ./test/... -timeout 60m
+        env:
+          AWS_DEFAULT_REGION: eu-north-1
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
