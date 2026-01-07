@@ -57,7 +57,7 @@ jobs:
     needs: [cache, validate]
     name: Terraform Operations
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4  # Updated from v3
 
@@ -73,12 +73,12 @@ jobs:
           terraform_version: 1.7.5
 
       - name: Terraform deploy
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.actions == 'apply') }}
+        if: ${{ github.event.inputs.actions == 'apply' }}
         working-directory: ./scripts/
         run: ./deploy.sh --auto-approve
 
       - name: Terraform destroy
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.actions == 'destroy' }}
+        if: ${{ github.event.inputs.actions == 'destroy' }}
         working-directory: ./scripts/
         run: ./destroy.sh --auto-approve
 
@@ -86,7 +86,7 @@ jobs:
     needs: [terraform_operations]
     name: Quality Check
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.actions == 'apply')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.actions == 'apply'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4  # Updated from v3
