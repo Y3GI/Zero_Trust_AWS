@@ -16,7 +16,6 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     }
 
     projectName := fmt.Sprintf("zt-full-%d", time.Now().Unix())
-    awsRegion := "eu-north-1"
 
     // Test 1: Bootstrap (from bootstrap_test.go)
     t.Run("Bootstrap", func(t *testing.T) {
