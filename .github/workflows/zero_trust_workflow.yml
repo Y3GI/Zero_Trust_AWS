@@ -73,12 +73,12 @@ jobs:
           terraform_version: 1.7.5
 
       - name: Terraform deploy
-        if: ${{ github.event.inputs.actions == 'apply' }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.actions == 'apply') }}
         working-directory: ./scripts/
         run: ./deploy.sh
 
       - name: Terraform destroy
-        if: ${{ github.event.inputs.actions == 'destroy' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.actions == 'destroy' }}
         working-directory: ./scripts/
         run: ./destroy.sh
 
