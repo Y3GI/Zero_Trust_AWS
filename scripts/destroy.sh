@@ -21,11 +21,13 @@ ENVS_DEV_DIR="$PROJECT_ROOT/envs/dev"
 
 # Variables
 FORCE=false
+AUTO_APPROVE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --force) FORCE=true; shift ;;
+        --auto-approve) AUTO_APPROVE=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -196,7 +198,13 @@ print_warning "This action CANNOT be undone!"
 echo ""
 
 # Confirmation
-if [[ "$FORCE" != true ]]; then
+if [[ "$FORCE" == true ]] || [[ "$AUTO_APPROVE" == true ]]; then
+    if [[ "$FORCE" == true ]]; then
+        print_warning "Using --force flag. Proceeding without confirmation."
+    else
+        print_info "Auto-approve enabled, proceeding without confirmation"
+    fi
+else
     # Double confirmation
     read -p "Type 'yes' to confirm destruction: " -r
     echo ""
@@ -212,8 +220,6 @@ if [[ "$FORCE" != true ]]; then
         print_error "Account ID mismatch. Destruction cancelled."
         exit 1
     fi
-else
-    print_warning "Using --force flag. Proceeding without confirmation."
 fi
 
 echo ""

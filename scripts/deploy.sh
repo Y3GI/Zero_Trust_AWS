@@ -24,12 +24,14 @@ PLANS_DIR="$PROJECT_ROOT/terraform-plans"
 DESTROY=false
 TARGET_MODULE=""
 DRY_RUN=false
+AUTO_APPROVE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --destroy) DESTROY=true; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
+        --auto-approve) AUTO_APPROVE=true; shift ;;
         --module=*) TARGET_MODULE="${1#*=}"; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
@@ -254,13 +256,15 @@ fi
 echo ""
 
 # Confirmation
-if [[ "$DRY_RUN" != true ]]; then
+if [[ "$DRY_RUN" != true ]] && [[ "$AUTO_APPROVE" != true ]]; then
     read -p "Do you want to proceed? (yes/no): " -r
     echo ""
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Deployment cancelled"
         exit 0
     fi
+elif [[ "$AUTO_APPROVE" == true ]]; then
+    print_info "Auto-approve enabled, proceeding without confirmation"
 fi
 
 echo ""
