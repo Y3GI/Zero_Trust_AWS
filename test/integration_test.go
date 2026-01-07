@@ -8,13 +8,18 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	options := &terraform.Options{
-		TerraformDir: "../path/to/your/terraform/code",
+	t.Parallel()
+
+	terraformOptions := &terraform.Options{
+		TerraformDir: "../envs/dev/vpc",
+		NoColor:      true,
 	}
 
-	defer terraform.Destroy(t, options)
+	defer terraform.Destroy(t, terraformOptions)
 
-	initAndApply := terraform.InitAndApply(t, options)
+	terraform.InitAndApply(t, terraformOptions)
 
-	assert.True(t, initAndApply)
+	// Verify VPC module deployed successfully
+	vpcID := terraform.Output(t, terraformOptions, "vpc_id")
+	assert.NotEmpty(t, vpcID, "VPC should be created")
 }

@@ -8,13 +8,18 @@ import (
 )
 
 func TestVpcCreation(t *testing.T) {
-	options := &terraform.Options{
-		TerraformDir: "../path/to/your/vpc/module",
+	t.Parallel()
+	
+	terraformOptions := &terraform.Options{
+		TerraformDir: "../envs/dev/vpc",
+		NoColor:      true,
 	}
 
-	defer terraform.Destroy(t, options)
+	defer terraform.Destroy(t, terraformOptions)
 
-	initAndApply := terraform.InitAndApply(t, options)
+	terraform.InitAndApply(t, terraformOptions)
 
-	assert.True(t, initAndApply)
+	// Verify VPC was created
+	vpcID := terraform.Output(t, terraformOptions, "vpc_id")
+	assert.NotEmpty(t, vpcID, "VPC ID should not be empty")
 }
