@@ -66,17 +66,15 @@ if ! command -v aws &> /dev/null; then
 fi
 print_success "AWS CLI installed"
 
-# Check AWS credentials (from OIDC or aws configure)
-if ! aws sts get-caller-identity &> /dev/null; then
-    print_error "AWS credentials not configured or invalid"
-    echo "For GitHub Actions: Ensure OIDC role is configured"
-    echo "For local: Run 'aws configure' to set up credentials"
-    exit 1
+# Check AWS credentials (optional for build - required for deploy)
+if aws sts get-caller-identity &> /dev/null; then
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    REGION=$(aws configure get region)
+    print_success "AWS credentials valid (Account: $ACCOUNT_ID, Region: $REGION)"
+else
+    print_warning "AWS credentials not configured - build will continue for validation only"
+    echo "Note: AWS credentials are required for deploy/destroy operations"
 fi
-
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=$(aws configure get region)
-print_success "AWS credentials valid (Account: $ACCOUNT_ID, Region: $REGION)"
 
 # Format Terraform files
 print_header "Step 2: Formatting Terraform Code"
