@@ -66,11 +66,11 @@ if ! command -v aws &> /dev/null; then
 fi
 print_success "AWS CLI installed"
 
-# Check AWS credentials (from aws configure or environment variables)
+# Check AWS credentials (from OIDC or aws configure)
 if ! aws sts get-caller-identity &> /dev/null; then
     print_error "AWS credentials not configured or invalid"
-    echo "Configure with: aws configure"
-    echo "Or set environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY"
+    echo "For GitHub Actions: Ensure OIDC role is configured"
+    echo "For local: Run 'aws configure' to set up credentials"
     exit 1
 fi
 
