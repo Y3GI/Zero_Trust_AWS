@@ -14,7 +14,7 @@ func TestMonitoringModule(t *testing.T) {
         TerraformDir: "../modules/monitoring",
         Vars: map[string]interface{}{
             "environment": "test",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
         },
     })
 

@@ -16,7 +16,7 @@ func TestComputeModule(t *testing.T) {
             "subnet_id": "subnet-12345678",
             "security_group_ids": []string{"sg-12345678"},
             "iam_instance_profile": "ec2-instance-profile",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
             "environment": "test",
         },
     })
@@ -46,7 +46,7 @@ func TestComputeEBSEncryption(t *testing.T) {
             "subnet_id": "subnet-12345678",
             "security_group_ids": []string{"sg-12345678"},
             "iam_instance_profile": "ec2-instance-profile",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
             "environment": "test",
         },
     })
@@ -71,7 +71,7 @@ func TestComputeUserData(t *testing.T) {
             "subnet_id": "subnet-12345678",
             "security_group_ids": []string{"sg-12345678"},
             "iam_instance_profile": "ec2-instance-profile",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+            "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
             "environment": "test",
         },
     })

@@ -18,21 +18,7 @@ permissions:
   contents: read
   security-events: write
 jobs:
-  configure_credentials:
-    name: Configure AWS Credentials
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4  # Updated from v3
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: eu-north-1
-
   cache:
-    needs: configure_credentials
     name: Cache Terraform Plugins
     runs-on: ubuntu-latest
     steps:
@@ -46,12 +32,17 @@ jobs:
           key: ${{ runner.os }}-terraform-${{ hashFiles('**/terraform.lock.hcl') }}
 
   validate:
-    needs: configure_credentials
     name: Validate Infrastructure as Code
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4  # Updated from v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
@@ -63,12 +54,18 @@ jobs:
         run: ./build.sh
 
   quality_check:
-    needs: [configure_credentials, cache, validate]
+    needs: [cache, validate]
     name: Quality Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4  # Updated from v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -111,6 +108,12 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4  # Updated from v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
