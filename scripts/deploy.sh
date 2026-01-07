@@ -10,14 +10,14 @@ set -e
 
 echo "🚀 Starting Zero Trust Infrastructure Deployment"
 
-# Validate AWS credentials (provided by GitHub Actions OIDC)
-if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-    echo "❌ Error: AWS credentials not found"
-    echo "Ensure GitHub Actions workflow has configured OIDC authentication"
+# Validate AWS credentials (from aws configure or environment variables)
+if ! aws sts get-caller-identity &> /dev/null; then
+    echo "❌ Error: AWS credentials not configured or invalid"
+    echo "Configure with: aws configure"
+    echo "Or set environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY"
     exit 1
 fi
 
-echo "✅ AWS credentials configured via OIDC"
 export AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 echo "📍 Deploying to region: $AWS_REGION"
 
@@ -25,6 +25,7 @@ echo "📍 Deploying to region: $AWS_REGION"
 echo "🔍 Verifying AWS access..."
 CALLER_IDENTITY=$(aws sts get-caller-identity)
 echo "$CALLER_IDENTITY"
+echo "✅ AWS credentials configured"
 
 ACCOUNT_ID=$(echo "$CALLER_IDENTITY" | jq -r '.Account')
 echo "📋 AWS Account: $ACCOUNT_ID"

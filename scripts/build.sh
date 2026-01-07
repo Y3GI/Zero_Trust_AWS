@@ -66,32 +66,17 @@ if ! command -v aws &> /dev/null; then
 fi
 print_success "AWS CLI installed"
 
-# Check AWS credentials
+# Check AWS credentials (from aws configure or environment variables)
 if ! aws sts get-caller-identity &> /dev/null; then
     print_error "AWS credentials not configured or invalid"
     echo "Configure with: aws configure"
+    echo "Or set environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY"
     exit 1
 fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION=$(aws configure get region)
 print_success "AWS credentials valid (Account: $ACCOUNT_ID, Region: $REGION)"
-
-echo ""
-
-# Use AWS credentials from environment (provided by GitHub Actions)
-# No need to configure credentials manually - they're injected by the workflow
-if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-    echo "❌ Error: AWS credentials not found in environment"
-    echo "This script expects AWS credentials to be provided via environment variables:"
-    echo "  - AWS_ACCESS_KEY_ID"
-    echo "  - AWS_SECRET_ACCESS_KEY"
-    echo "  - AWS_SESSION_TOKEN (if using temporary credentials)"
-    exit 1
-fi
-
-echo "✅ Using AWS credentials from environment"
-echo "Region: ${AWS_DEFAULT_REGION:-us-east-1}"
 
 # Format Terraform files
 print_header "Step 2: Formatting Terraform Code"
