@@ -8,6 +8,9 @@
 
 set -e  # Exit on any error
 
+# Trap to disable set -e for specific commands
+# This allows us to run commands that might fail without stopping the whole script
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -68,8 +71,8 @@ print_success "AWS CLI installed"
 
 # Check AWS credentials (optional for build - required for deploy)
 if aws sts get-caller-identity &> /dev/null; then
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-    REGION=$(aws configure get region)
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "unknown")
+    REGION=$(aws configure get region 2>/dev/null || echo "not set")
     print_success "AWS credentials valid (Account: $ACCOUNT_ID, Region: $REGION)"
 else
     print_warning "AWS credentials not configured - build will continue for validation only"
