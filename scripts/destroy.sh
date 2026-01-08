@@ -132,23 +132,13 @@ get_module_status() {
         return
     fi
     
-    # Initialize terraform to read remote state if needed
-    if [[ ! -d "$module_path/.terraform" ]]; then
-        terraform -chdir="$module_path" init -no-color -upgrade=false > /dev/null 2>&1
+    # Simple check: if .terraform exists and has a config, module was deployed
+    if [[ -d "$module_path/.terraform" ]]; then
+        # Just return DEPLOYED - let terraform destroy handle checking actual state
+        echo "DEPLOYED"
+    else
+        echo "NOT_DEPLOYED"
     fi
-    
-    # Check if terraform has any state resources (simpler approach)
-    # Use terraform state show to check if there are any resources
-    if terraform -chdir="$module_path" state list > /dev/null 2>&1; then
-        # state list succeeded, so there's state. Now check if it's empty
-        local resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l)
-        if [[ $resource_count -gt 0 ]]; then
-            echo "DEPLOYED"
-            return
-        fi
-    fi
-    
-    echo "NOT_DEPLOYED"
 }
 
 print_header "ZTNA Infrastructure Destruction Script"
