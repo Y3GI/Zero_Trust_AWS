@@ -1,0 +1,36 @@
+name: Destroy Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Type 'DESTROY' to confirm destruction of resources"
+        required: true
+        default: "NO"
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+jobs:
+  destroy_infrastructure:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm_destroy == 'DESTROY'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
+      
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.7.5
+      
+      - name: Destroy Infrastructure
+        working-directory: ./scripts/
+        run: ./destroy.sh --force --auto-approve
