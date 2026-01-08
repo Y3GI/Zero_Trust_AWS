@@ -1,12 +1,12 @@
 # Bastion Host Outputs
 output "bastion_instance_id" {
     description = "The ID of the Bastion host EC2 instance"
-    value       = aws_instance.bastion.id
+    value       = length(var.public_subnet_ids) > 0 ? aws_instance.bastion[0].id : null
 }
 
 output "bastion_public_ip" {
     description = "The public IP address of the Bastion host"
-    value       = aws_instance.bastion.public_ip
+    value       = length(var.public_subnet_ids) > 0 ? aws_instance.bastion[0].public_ip : null
 }
 
 output "bastion_security_group_id" {
@@ -17,12 +17,12 @@ output "bastion_security_group_id" {
 # Application Server Outputs
 output "app_server_instance_id" {
     description = "The ID of the Application server EC2 instance"
-    value       = aws_instance.app_server.id
+    value       = length(var.private_subnet_ids) > 0 ? aws_instance.app_server[0].id : null
 }
 
 output "app_server_private_ip" {
     description = "The private IP address of the Application server"
-    value       = aws_instance.app_server.private_ip
+    value       = length(var.private_subnet_ids) > 0 ? aws_instance.app_server[0].private_ip : null
 }
 
 output "app_security_group_id" {

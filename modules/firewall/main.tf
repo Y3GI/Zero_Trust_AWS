@@ -62,8 +62,11 @@ resource "aws_networkfirewall_firewall" "main" {
     # Deploy into the PUBLIC subnet so it can filter ingress/egress
     subnet_change_protection = false
 
-    subnet_mapping {
-        subnet_id = var.public_subnet_ids[0]
+    dynamic "subnet_mapping" {
+        for_each = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : []
+        content {
+            subnet_id = subnet_mapping.value
+        }
     }
 
     tags = merge(var.tags, {

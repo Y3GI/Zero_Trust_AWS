@@ -35,6 +35,7 @@ resource "aws_security_group" "bastion_sg" {
 }
 
 resource "aws_instance" "bastion" {
+    count         = length(var.public_subnet_ids) > 0 ? 1 : 0
     ami           = data.aws_ami.amazon_linux.id
     instance_type = "t3.micro"
 
@@ -84,6 +85,7 @@ resource "aws_security_group" "app_sg" {
 }
 
 resource "aws_instance" "app_server" {
+    count         = length(var.private_subnet_ids) > 0 ? 1 : 0
     ami           = data.aws_ami.amazon_linux.id
     instance_type = var.instance_type
 
