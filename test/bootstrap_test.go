@@ -11,8 +11,9 @@ func TestBootstrapModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := &terraform.Options{
-		TerraformDir: "../envs/dev/bootstrap",
-		NoColor:      true,
+		TerraformDir:   "../envs/dev/bootstrap",
+		TerraformBinary: "terraform",
+		NoColor:        true,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)

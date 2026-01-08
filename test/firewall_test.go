@@ -11,7 +11,8 @@ func TestFirewallModule(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/firewall",
+        TerraformDir:    "../modules/firewall",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "vpc_id": "vpc-12345678",
             "vpc_cidr": "10.0.0.0/16",
@@ -37,7 +38,8 @@ func TestFirewallNACLs(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/firewall",
+        TerraformDir:    "../modules/firewall",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "vpc_id": "vpc-12345678",
             "vpc_cidr": "10.0.0.0/16",
@@ -61,7 +63,8 @@ func TestFirewallSecurityGroupRules(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/firewall",
+        TerraformDir:    "../modules/firewall",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "vpc_id": "vpc-12345678",
             "vpc_cidr": "10.0.0.0/16",

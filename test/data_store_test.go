@@ -11,7 +11,8 @@ func TestDataStoreModule(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/data_store",
+        TerraformDir:    "../modules/data_store",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_ids": []string{"subnet-12345678", "subnet-87654321"},
             "security_group_id": "sg-12345678",
@@ -38,7 +39,8 @@ func TestDataStoreEncryption(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/data_store",
+        TerraformDir:    "../modules/data_store",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_ids": []string{"subnet-12345678", "subnet-87654321"},
             "security_group_id": "sg-12345678",
@@ -64,7 +66,8 @@ func TestDataStoreBackup(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/data_store",
+        TerraformDir:    "../modules/data_store",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_ids": []string{"subnet-12345678", "subnet-87654321"},
             "security_group_id": "sg-12345678",
@@ -88,7 +91,8 @@ func TestDataStorePublicAccess(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/data_store",
+        TerraformDir:    "../modules/data_store",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_ids": []string{"subnet-12345678", "subnet-87654321"},
             "security_group_id": "sg-12345678",

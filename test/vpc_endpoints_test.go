@@ -11,7 +11,8 @@ func TestVPCEndpointsModule(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/vpc-endpoints",
+        TerraformDir:    "../modules/vpc-endpoints",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "vpc_id":            "vpc-12345678",
             "private_subnet_ids": []string{"subnet-12345678"},
@@ -40,7 +41,8 @@ func TestVPCEndpointsOutputs(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/vpc-endpoints",
+        TerraformDir:    "../modules/vpc-endpoints",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "vpc_id":            "vpc-12345678",
             "private_subnet_ids": []string{"subnet-12345678"},

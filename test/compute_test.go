@@ -11,7 +11,8 @@ func TestComputeModule(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/compute",
+        TerraformDir:    "../modules/compute",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_id": "subnet-12345678",
             "security_group_ids": []string{"sg-12345678"},
@@ -41,7 +42,8 @@ func TestComputeEBSEncryption(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/compute",
+        TerraformDir:    "../modules/compute",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_id": "subnet-12345678",
             "security_group_ids": []string{"sg-12345678"},
@@ -66,7 +68,8 @@ func TestComputeUserData(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/compute",
+        TerraformDir:    "../modules/compute",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "subnet_id": "subnet-12345678",
             "security_group_ids": []string{"sg-12345678"},

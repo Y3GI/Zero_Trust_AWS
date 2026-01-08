@@ -11,8 +11,9 @@ func TestIntegration(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := &terraform.Options{
-		TerraformDir: "../envs/dev/vpc",
-		NoColor:      true,
+		TerraformDir:    "../envs/dev/vpc",
+		TerraformBinary: "terraform",
+		NoColor:         true,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)

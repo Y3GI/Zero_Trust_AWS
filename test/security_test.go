@@ -11,7 +11,8 @@ func TestSecurityModule(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/security",
+        TerraformDir:    "../modules/security",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
             "project_name": "zero-trust",
@@ -40,7 +41,8 @@ func TestSecurityKMSRotation(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/security",
+        TerraformDir:    "../modules/security",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
             "project_name": "zero-trust",
@@ -60,7 +62,8 @@ func TestSecurityIAMPolicies(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/security",
+        TerraformDir:    "../modules/security",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
             "project_name": "zero-trust",

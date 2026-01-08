@@ -11,7 +11,8 @@ func TestCertificatesModule(t *testing.T) {
     t.Parallel()
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir: "../modules/certificates",
+        TerraformDir:    "../modules/certificates",
+        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "domain_name": "*.example.com",
             "environment": "test",

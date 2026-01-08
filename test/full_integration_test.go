@@ -21,6 +21,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Bootstrap", func(t *testing.T) {
         bootstrapOptions := &terraform.Options{
             TerraformDir: "../envs/dev/bootstrap",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "project_name": projectName,
                 "environment":  "test",
@@ -47,6 +48,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("VPC", func(t *testing.T) {
         vpcOptions := &terraform.Options{
             TerraformDir: "../envs/dev/vpc",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "project_name":       projectName,
                 "environment":        "test",
@@ -79,6 +81,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Security", func(t *testing.T) {
         securityOptions := &terraform.Options{
             TerraformDir: "../envs/dev/security",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "project_name": projectName,
                 "environment":  "test",
@@ -111,6 +114,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Secrets", func(t *testing.T) {
         secretsOptions := &terraform.Options{
             TerraformDir: "../envs/dev/secrets",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "environment": "test",
                 "kms_key_id":  kmsKeyId,
@@ -136,6 +140,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Certificates", func(t *testing.T) {
         certOptions := &terraform.Options{
             TerraformDir: "../envs/dev/certificates",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "domain_name": "*.example.com",
                 "environment": "test",
@@ -159,6 +164,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("RBAC", func(t *testing.T) {
         rbacOptions := &terraform.Options{
             TerraformDir: "../envs/dev/rbac-authorization",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "environment": "test",
             },
@@ -186,6 +192,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Firewall", func(t *testing.T) {
         firewallOptions := &terraform.Options{
             TerraformDir: "../envs/dev/firewall",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "vpc_id":              vpcId,
                 "vpc_cidr":            "10.0.0.0/16",
@@ -216,6 +223,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("VPCEndpoints", func(t *testing.T) {
         endpointsOptions := &terraform.Options{
             TerraformDir: "../envs/dev/vpc-endpoints",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "vpc_id":            vpcId,
                 "private_subnet_ids": privateSubnets,
@@ -244,6 +252,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Compute", func(t *testing.T) {
         computeOptions := &terraform.Options{
             TerraformDir: "../envs/dev/compute",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "subnet_id":           privateSubnets[0],
                 "security_group_ids":  []string{ec2SgId},
@@ -274,6 +283,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("DataStore", func(t *testing.T) {
         dataStoreOptions := &terraform.Options{
             TerraformDir: "../envs/dev/data_store",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "subnet_ids":        databaseSubnets,
                 "security_group_id": rdsSgId,
@@ -303,6 +313,7 @@ func TestFullZeroTrustInfrastructure(t *testing.T) {
     t.Run("Monitoring", func(t *testing.T) {
         monitoringOptions := &terraform.Options{
             TerraformDir: "../envs/dev/monitoring",
+            TerraformBinary: "terraform",
             Vars: map[string]interface{}{
                 "environment":   "test",
                 "kms_key_id":    kmsKeyId,

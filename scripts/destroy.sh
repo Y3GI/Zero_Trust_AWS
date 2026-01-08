@@ -132,7 +132,22 @@ get_module_status() {
         return
     fi
     
-    if [[ -f "$module_path/terraform.tfstate" ]]; then
+    # Initialize terraform to read remote state (suppress output but show errors)
+    if [[ ! -d "$module_path/.terraform" ]]; then
+        print_info "Initializing $module to check status..."
+        if ! terraform -chdir="$module_path" init -no-color > /tmp/${module}_init.log 2>&1; then
+            print_warning "$module initialization failed, checking log..."
+            cat /tmp/${module}_init.log | head -20
+            echo "NOT_DEPLOYED"
+            return
+        fi
+    fi
+    
+    # Check if state has any resources by checking state list output
+    local state_list=$(terraform -chdir="$module_path" state list 2>&1 | tr '\n' ' ')
+    local resource_count=$(echo "$state_list" | grep -o "[a-z_]*\." | wc -l)
+    
+    if [[ $resource_count -gt 0 ]]; then
         echo "DEPLOYED"
     else
         echo "NOT_DEPLOYED"
@@ -214,7 +229,7 @@ else
         exit 0
     fi
     
-    # Second confirmation
+    # Second confirmation - account ID
     read -p "Type the AWS account ID ($ACCOUNT_ID) to confirm: " -r
     echo ""
     if [[ ! $REPLY == "$ACCOUNT_ID" ]]; then
