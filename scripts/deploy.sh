@@ -123,7 +123,12 @@ deploy_module() {
     # Check if terraform is initialized
     if [[ ! -d "$module_path/.terraform" ]]; then
         print_info "Initializing $module..."
-        terraform -chdir="$module_path" init -no-color > /dev/null 2>&1
+        if ! terraform -chdir="$module_path" init -no-color > /tmp/${module}_init.log 2>&1; then
+            print_error "$module initialization failed"
+            print_error "Error details:"
+            cat /tmp/${module}_init.log
+            return 1
+        fi
     fi
     
     # Apply the configuration
@@ -132,7 +137,8 @@ deploy_module() {
         return 0
     else
         print_error "$module deployment failed"
-        print_info "Check logs: cat /tmp/${module}_apply.log"
+        print_error "Error details:"
+        cat /tmp/${module}_apply.log
         return 1
     fi
 }

@@ -108,7 +108,8 @@ destroy_module() {
         return 0
     else
         print_error "$module destruction failed"
-        print_info "Check logs: cat /tmp/${module}_destroy.log"
+        print_error "Error details:"
+        cat /tmp/${module}_destroy.log
         
         # Clear sensitive variables on failure
         if [[ "$module" == "secrets" ]]; then
