@@ -131,6 +131,13 @@ deploy_module() {
         fi
     fi
     
+    # Check if module is already deployed (has resources in state)
+    resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$resource_count" -gt 0 ]]; then
+        print_success "$module already deployed (contains $resource_count resources)"
+        return 0
+    fi
+    
     # Apply the configuration
     if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
         print_success "$module deployed"
