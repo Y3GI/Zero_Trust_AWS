@@ -136,25 +136,27 @@ get_module_status() {
     if [[ ! -d "$module_path/.terraform" ]]; then
         print_info "Initializing $module to check status..."
         if ! terraform -chdir="$module_path" init -no-color > /tmp/${module}_init.log 2>&1; then
-            print_warning "$module initialization failed, checking log..."
-            cat /tmp/${module}_init.log | head -20
+            print_warning "$module initialization failed"
+            cat /tmp/${module}_init.log
             echo "NOT_DEPLOYED"
             return
         fi
     fi
     
     # Check if state has any resources
+    print_info "Checking state for $module..."
     local state_list=$(terraform -chdir="$module_path" state list 2>&1)
     
-    # If state list returns nothing or errors, check if state file exists
     if [[ -z "$state_list" ]] || [[ "$state_list" == *"Error"* ]]; then
         # No remote state or error reading it
+        print_info "No state found for $module: $state_list"
         echo "NOT_DEPLOYED"
         return
     fi
     
     # Count the number of resources (each line is a resource)
-    local resource_count=$(echo "$state_list" | wc -l)
+    local resource_count=$(echo "$state_list" | grep -v "^$" | wc -l)
+    print_info "Found $resource_count resources in $module state"
     
     if [[ $resource_count -gt 0 ]]; then
         echo "DEPLOYED"
