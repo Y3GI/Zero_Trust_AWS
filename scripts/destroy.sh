@@ -143,9 +143,18 @@ get_module_status() {
         fi
     fi
     
-    # Check if state has any resources by checking state list output
-    local state_list=$(terraform -chdir="$module_path" state list 2>&1 | tr '\n' ' ')
-    local resource_count=$(echo "$state_list" | grep -o "[a-z_]*\." | wc -l)
+    # Check if state has any resources
+    local state_list=$(terraform -chdir="$module_path" state list 2>&1)
+    
+    # If state list returns nothing or errors, check if state file exists
+    if [[ -z "$state_list" ]] || [[ "$state_list" == *"Error"* ]]; then
+        # No remote state or error reading it
+        echo "NOT_DEPLOYED"
+        return
+    fi
+    
+    # Count the number of resources (each line is a resource)
+    local resource_count=$(echo "$state_list" | wc -l)
     
     if [[ $resource_count -gt 0 ]]; then
         echo "DEPLOYED"
