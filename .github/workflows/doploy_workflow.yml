@@ -1,4 +1,4 @@
-name: Zero Trust AWS Workflow
+name: Deploy Workflow
 
 on:
   push:
@@ -49,7 +49,6 @@ jobs:
     needs: [cache, validate]
     name: Terraform Operations
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
