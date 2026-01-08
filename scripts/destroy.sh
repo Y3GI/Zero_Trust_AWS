@@ -132,37 +132,23 @@ get_module_status() {
         return
     fi
     
-    # Initialize terraform to read remote state (suppress output but show errors)
+    # Initialize terraform to read remote state if needed
     if [[ ! -d "$module_path/.terraform" ]]; then
-        print_info "Initializing $module to check status..."
-        if ! terraform -chdir="$module_path" init -no-color > /tmp/${module}_init.log 2>&1; then
-            print_warning "$module initialization failed"
-            cat /tmp/${module}_init.log
-            echo "NOT_DEPLOYED"
+        terraform -chdir="$module_path" init -no-color -upgrade=false > /dev/null 2>&1
+    fi
+    
+    # Check if terraform has any state resources (simpler approach)
+    # Use terraform state show to check if there are any resources
+    if terraform -chdir="$module_path" state list > /dev/null 2>&1; then
+        # state list succeeded, so there's state. Now check if it's empty
+        local resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l)
+        if [[ $resource_count -gt 0 ]]; then
+            echo "DEPLOYED"
             return
         fi
     fi
     
-    # Check if state has any resources
-    print_info "Checking state for $module..."
-    local state_list=$(terraform -chdir="$module_path" state list 2>&1)
-    
-    if [[ -z "$state_list" ]] || [[ "$state_list" == *"Error"* ]]; then
-        # No remote state or error reading it
-        print_info "No state found for $module: $state_list"
-        echo "NOT_DEPLOYED"
-        return
-    fi
-    
-    # Count the number of resources (each line is a resource)
-    local resource_count=$(echo "$state_list" | grep -v "^$" | wc -l)
-    print_info "Found $resource_count resources in $module state"
-    
-    if [[ $resource_count -gt 0 ]]; then
-        echo "DEPLOYED"
-    else
-        echo "NOT_DEPLOYED"
-    fi
+    echo "NOT_DEPLOYED"
 }
 
 print_header "ZTNA Infrastructure Destruction Script"
