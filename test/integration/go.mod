@@ -1,4 +1,4 @@
-module github.com/yourusername/zero-trust-aws
+module github.com/y3gi/zero-trust-aws/test/integration
 
 go 1.21
 
