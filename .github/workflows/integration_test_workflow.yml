@@ -46,11 +46,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Install Go dependencies
-        run: go mod download
+      - name: Install and tidy Go dependencies
+        working-directory: ./test/integration
+        run: |
+          go mod download
+          go mod tidy
 
-      - name: Tidy Go modules
-        run: go mod tidy
+      - name: Verify Go dependencies
+        working-directory: ./test/integration
+        run: go mod verify
 
       - name: Run Terratest Integration Tests
         run: go test -v ./test/integration/... -timeout 60m
