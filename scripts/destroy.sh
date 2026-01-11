@@ -76,6 +76,36 @@ print_info() {
     echo -e "${BLUE}ℹ $1${NC}"
 }
 
+# Function to delete state file from S3
+delete_state_file() {
+    local module=$1
+    
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    
+    print_info "Deleting state file from S3: s3://${STATE_BUCKET}/${STATE_KEY}"
+    
+    # Check if state file exists
+    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        # Delete the state file
+        if aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            print_success "$module state file deleted from S3"
+        else
+            print_warning "Failed to delete $module state file from S3"
+            return 1
+        fi
+        
+        # Also delete state lock file if it exists
+        STATE_LOCK_KEY="dev/${module}/terraform.tfstate.d"
+        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_LOCK_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            aws s3 rm "s3://${STATE_BUCKET}/${STATE_LOCK_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
+        fi
+    else
+        print_info "$module state file does not exist in S3"
+    fi
+}
+
 # Function to destroy a module
 destroy_module() {
     local module=$1
@@ -132,6 +162,9 @@ EOF
     # Destroy the configuration
     if terraform -chdir="$module_path" destroy -auto-approve -no-color > /tmp/${module}_destroy.log 2>&1; then
         print_success "$module destroyed"
+        
+        # Delete state file from S3
+        delete_state_file "$module"
         
         # Clear sensitive variables
         if [[ "$module" == "secrets" ]]; then
