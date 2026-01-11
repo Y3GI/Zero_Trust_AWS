@@ -173,10 +173,11 @@ func TestNoHardcodedSecrets(t *testing.T) {
 	files, err := findTerraformFiles(terraformDir)
 	require.NoError(t, err)
 
-	// Patterns for hardcoded secrets
-	passwordPattern := regexp.MustCompile(`password\s*=\s*["'](?!var\.|data\.|aws_|local\.)`)
-	secretPattern := regexp.MustCompile(`secret\s*=\s*["'](?!var\.|data\.|aws_|local\.)`)
-	apiKeyPattern := regexp.MustCompile(`api_key\s*=\s*["'](?!var\.|data\.|aws_|local\.)`)
+	// Patterns for hardcoded secrets - check for literal strings (not variable/data references)
+	// These patterns look for actual string values that are hardcoded
+	passwordPattern := regexp.MustCompile(`password\s*=\s*["'][a-zA-Z0-9!@#$%^&*_\-]+["']`)
+	secretPattern := regexp.MustCompile(`secret\s*=\s*["'][a-zA-Z0-9!@#$%^&*_\-]+["']`)
+	apiKeyPattern := regexp.MustCompile(`api_key\s*=\s*["'][a-zA-Z0-9!@#$%^&*_\-]+["']`)
 
 	violatingFiles := []string{}
 

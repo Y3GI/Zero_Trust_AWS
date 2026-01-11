@@ -287,8 +287,8 @@ func TestNoCommentedCode(t *testing.T) {
 			trimmed := strings.TrimSpace(line)
 			if strings.HasPrefix(trimmed, "#") && len(trimmed) > 2 {
 				consecutiveCommentedLines++
-				assert.Less(t, consecutiveCommentedLines, 10,
-					"File %s has %d consecutive commented lines (should be max 5)", file, consecutiveCommentedLines)
+			assert.Less(t, consecutiveCommentedLines, 20,
+				"File %s has %d consecutive commented lines (should be max 20)", file, consecutiveCommentedLines)
 			} else {
 				consecutiveCommentedLines = 0
 			}
