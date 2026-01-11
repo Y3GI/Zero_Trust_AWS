@@ -372,16 +372,26 @@ handle_bootstrap_import() {
         
         # Import terraform state bucket
         print_info "Importing: aws_s3_bucket.terraform_state"
-        terraform -chdir="$module_path" import -no-color aws_s3_bucket.terraform_state "$STATE_BUCKET" > /dev/null 2>&1 || true
+        if terraform -chdir="$module_path" import -no-color aws_s3_bucket.terraform_state "$STATE_BUCKET" > /tmp/import_state.log 2>&1; then
+            print_success "Imported terraform_state bucket"
+        else
+            print_warning "Failed to import terraform_state bucket:"
+            grep -i "error\|failed" /tmp/import_state.log | head -3 || cat /tmp/import_state.log | head -5
+        fi
         
         # Import CloudTrail bucket (find it by pattern)
         CLOUDTRAIL_BUCKET=$(aws s3 ls --region eu-north-1 2>/dev/null | grep "dev-ztna-audit-logs" | awk '{print $3}' | head -1)
         if [[ -n "$CLOUDTRAIL_BUCKET" ]]; then
             print_info "Importing: aws_s3_bucket.cloudtrail_bucket"
-            terraform -chdir="$module_path" import -no-color aws_s3_bucket.cloudtrail_bucket "$CLOUDTRAIL_BUCKET" > /dev/null 2>&1 || true
+            if terraform -chdir="$module_path" import -no-color aws_s3_bucket.cloudtrail_bucket "$CLOUDTRAIL_BUCKET" > /tmp/import_cloudtrail.log 2>&1; then
+                print_success "Imported cloudtrail_bucket"
+            else
+                print_warning "Failed to import cloudtrail_bucket:"
+                grep -i "error\|failed" /tmp/import_cloudtrail.log | head -3 || cat /tmp/import_cloudtrail.log | head -5
+            fi
         fi
         
-        print_success "Bootstrap buckets imported"
+        print_success "Bootstrap bucket imports completed"
     fi
 }
 
