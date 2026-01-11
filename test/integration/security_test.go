@@ -11,7 +11,7 @@ func TestSecurityModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/security",
+		TerraformDir:    "../../envs/dev/security",
 		TerraformBinary: "terraform",
 	})
 
@@ -35,7 +35,7 @@ func TestSecurityKMSRotation(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/security",
+		TerraformDir:    "../../envs/dev/security",
 		TerraformBinary: "terraform",
 	})
 
@@ -51,7 +51,7 @@ func TestSecurityIAMPolicies(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/security",
+		TerraformDir:    "../../envs/dev/security",
 		TerraformBinary: "terraform",
 	})
 

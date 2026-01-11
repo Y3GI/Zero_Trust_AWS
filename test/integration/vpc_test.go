@@ -11,7 +11,7 @@ func TestVpcCreation(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/vpc",
+		TerraformDir:    "../../envs/dev/vpc",
 		TerraformBinary: "terraform",
 	})
 

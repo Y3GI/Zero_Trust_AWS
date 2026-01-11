@@ -11,7 +11,7 @@ func TestDataStoreModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/data_store",
+		TerraformDir:    "../../envs/dev/data_store",
 		TerraformBinary: "terraform",
 	})
 
@@ -30,7 +30,7 @@ func TestDataStoreEncryption(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/data_store",
+		TerraformDir:    "../../envs/dev/data_store",
 		TerraformBinary: "terraform",
 	})
 
@@ -45,7 +45,7 @@ func TestDataStoreBackup(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/data_store",
+		TerraformDir:    "../../envs/dev/data_store",
 		TerraformBinary: "terraform",
 	})
 
@@ -60,7 +60,7 @@ func TestDataStorePublicAccess(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/data_store",
+		TerraformDir:    "../../envs/dev/data_store",
 		TerraformBinary: "terraform",
 	})
 

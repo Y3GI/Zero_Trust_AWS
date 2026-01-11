@@ -11,7 +11,7 @@ func TestBootstrapModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/bootstrap",
+		TerraformDir:    "../../envs/dev/bootstrap",
 		TerraformBinary: "terraform",
 	})
 

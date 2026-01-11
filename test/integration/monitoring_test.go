@@ -11,7 +11,7 @@ func TestMonitoringModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/monitoring",
+		TerraformDir:    "../../envs/dev/monitoring",
 		TerraformBinary: "terraform",
 	})
 
@@ -31,7 +31,7 @@ func TestMonitoringCloudTrail(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/monitoring",
+		TerraformDir:    "../../envs/dev/monitoring",
 		TerraformBinary: "terraform",
 	})
 
@@ -46,7 +46,7 @@ func TestMonitoringAlarms(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/monitoring",
+		TerraformDir:    "../../envs/dev/monitoring",
 		TerraformBinary: "terraform",
 	})
 
@@ -61,7 +61,7 @@ func TestMonitoringBudget(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../envs/dev/monitoring",
+		TerraformDir:    "../../envs/dev/monitoring",
 		TerraformBinary: "terraform",
 	})
 
