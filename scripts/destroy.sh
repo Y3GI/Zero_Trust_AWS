@@ -93,33 +93,40 @@ destroy_module() {
         return 0
     fi
     
-    # Check if terraform is initialized
-    if [[ ! -d "$module_path/.terraform" ]]; then
-        print_info "$module not deployed, skipping"
+    print_info "Destroying: $module"
+    
+    # Set up backend configuration from S3
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    
+    # Check if state exists in S3
+    if ! aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "$module state not found in S3, skipping"
         return 0
     fi
     
-    print_info "Destroying: $module"
-    
-    # Before destroying, reconfigure backend to remove DynamoDB locks
-    # (the locks table may have been destroyed already)
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
-    
-    # Check if S3 bucket exists and reconfigure backend without DynamoDB
+    # Check if S3 bucket exists and configure backend without DynamoDB
     if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
-        print_info "Reconfiguring $module backend to remove DynamoDB locks (if present)..."
+        print_info "Configuring $module backend from S3..."
         
         # Create backend config without DynamoDB (only S3)
         cat > "$module_path/backend-config.hcl" << EOF
 bucket         = "${STATE_BUCKET}"
-key            = "dev/${module}/terraform.tfstate"
+key            = "${STATE_KEY}"
 region         = "eu-north-1"
 encrypt        = true
 EOF
         
-        # Reconfigure backend
-        terraform -chdir="$module_path" init -reconfigure -backend-config=backend-config.hcl -no-color -input=false > /dev/null 2>&1 || true
+        # Initialize/reconfigure terraform with S3 backend
+        print_info "Initializing $module from S3 state..."
+        if ! terraform -chdir="$module_path" init -reconfigure -backend-config=backend-config.hcl -no-color -input=false > /tmp/${module}_init.log 2>&1; then
+            print_warning "$module initialization from S3 had issues (may still proceed):"
+            head -5 /tmp/${module}_init.log
+        fi
+    else
+        print_warning "S3 state bucket not found, cannot configure backend"
+        return 0
     fi
     
     # Destroy the configuration
