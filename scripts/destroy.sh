@@ -213,20 +213,41 @@ cleanup_acm_pca() {
     return 0
 }
 
-# Function to get module status
+# Function to get module status from S3 state (not local)
 get_module_status() {
     local module=$1
-    local module_path="$ENVS_DEV_DIR/$module"
     
-    if [[ ! -d "$module_path" ]]; then
-        echo "NOT_FOUND"
+    # Skip bootstrap - always check local status for it
+    if [[ "$module" == "bootstrap" ]]; then
+        local module_path="$ENVS_DEV_DIR/$module"
+        if [[ -d "$module_path/.terraform" ]]; then
+            echo "DEPLOYED"
+        else
+            echo "NOT_DEPLOYED"
+        fi
         return
     fi
     
-    # Simple check: if .terraform exists and has a config, module was deployed
-    if [[ -d "$module_path/.terraform" ]]; then
-        # Just return DEPLOYED - let terraform destroy handle checking actual state
-        echo "DEPLOYED"
+    # For other modules, check S3 state
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    
+    # Check if state file exists in S3
+    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        # State file exists - check if it has resources
+        # Read the state file and check for resources
+        if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/${module}_state.json --region eu-north-1 > /dev/null 2>&1; then
+            # Check if state has any resources
+            if grep -q '"type":' /tmp/${module}_state.json 2>/dev/null; then
+                echo "DEPLOYED"
+            else
+                echo "NOT_DEPLOYED"
+            fi
+            rm -f /tmp/${module}_state.json
+        else
+            echo "NOT_DEPLOYED"
+        fi
     else
         echo "NOT_DEPLOYED"
     fi
