@@ -13,16 +13,6 @@ func TestVPCEndpointsModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/vpc-endpoints",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"vpc_id":                 "vpc-12345678",
-			"vpc_cidr":               "10.0.0.0/16",
-			"private_subnet_ids":     []string{"subnet-12345678"},
-			"private_rt_id":          "rtb-12345678",
-			"public_rt_id":           "rtb-87654321",
-			"cloudtrail_bucket_name": "cloudtrail-bucket",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -43,16 +33,6 @@ func TestVPCEndpointsOutputs(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/vpc-endpoints",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"vpc_id":                 "vpc-12345678",
-			"vpc_cidr":               "10.0.0.0/16",
-			"private_subnet_ids":     []string{"subnet-12345678"},
-			"private_rt_id":          "rtb-12345678",
-			"public_rt_id":           "rtb-87654321",
-			"cloudtrail_bucket_name": "cloudtrail-bucket",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

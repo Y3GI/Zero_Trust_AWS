@@ -13,10 +13,6 @@ func TestRBACModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/rbac-authorization",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":    "dev",
-			"region": "eu-north-1",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -36,10 +32,6 @@ func TestRBACPolicies(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/rbac-authorization",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":    "dev",
-			"region": "eu-north-1",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

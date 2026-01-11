@@ -13,16 +13,6 @@ func TestMonitoringModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/monitoring",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"vpc_id":                 "vpc-12345678",
-			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
-			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
-			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
-			"email":                  "admin@example.com",
-			"limit_amount":           float64(1000),
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -43,16 +33,6 @@ func TestMonitoringCloudTrail(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/monitoring",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"vpc_id":                 "vpc-12345678",
-			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
-			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
-			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
-			"email":                  "admin@example.com",
-			"limit_amount":           float64(1000),
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)
@@ -68,16 +48,6 @@ func TestMonitoringAlarms(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/monitoring",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"vpc_id":                 "vpc-12345678",
-			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
-			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
-			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
-			"email":                  "admin@example.com",
-			"limit_amount":           float64(1000),
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)
@@ -93,16 +63,6 @@ func TestMonitoringBudget(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/monitoring",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"vpc_id":                 "vpc-12345678",
-			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
-			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
-			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
-			"email":                  "admin@example.com",
-			"limit_amount":           float64(1000),
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

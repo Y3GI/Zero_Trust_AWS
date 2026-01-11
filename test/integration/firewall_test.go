@@ -13,12 +13,6 @@ func TestFirewallModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/firewall",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                 "dev",
-			"region":              "eu-north-1",
-			"vpc_id":              "vpc-12345678",
-			"public_subnet_ids":   []string{"subnet-12345678"},
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)

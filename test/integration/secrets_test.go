@@ -13,19 +13,6 @@ func TestSecretsModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/secrets",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"kms_key_id":             "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-			"app_instance_role_arn":  "arn:aws:iam::123456789012:role/app-role",
-			"db_username":            "dbadmin",
-			"db_password":            "Test@1234Secure!",
-			"db_host":                "db.example.com",
-			"db_port":                float64(5432),
-			"db_name":                "testdb",
-			"api_key_1":              "test-key-1",
-			"api_key_2":              "test-key-2",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -46,19 +33,6 @@ func TestSecretsPasswordComplexity(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/secrets",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                    "dev",
-			"region":                 "eu-north-1",
-			"kms_key_id":             "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-			"app_instance_role_arn":  "arn:aws:iam::123456789012:role/app-role",
-			"db_username":            "dbadmin",
-			"db_password":            "Test@1234Secure!",
-			"db_host":                "db.example.com",
-			"db_port":                float64(5432),
-			"db_name":                "testdb",
-			"api_key_1":              "test-key-1",
-			"api_key_2":              "test-key-2",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

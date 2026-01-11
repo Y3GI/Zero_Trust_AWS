@@ -13,11 +13,6 @@ func TestDataStoreModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/data_store",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":         "dev",
-			"region":      "eu-north-1",
-			"kms_key_arn": "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -37,11 +32,6 @@ func TestDataStoreEncryption(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/data_store",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":         "dev",
-			"region":      "eu-north-1",
-			"kms_key_arn": "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)
@@ -57,11 +47,6 @@ func TestDataStoreBackup(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/data_store",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":         "dev",
-			"region":      "eu-north-1",
-			"kms_key_arn": "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)
@@ -77,11 +62,6 @@ func TestDataStorePublicAccess(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/data_store",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":         "dev",
-			"region":      "eu-north-1",
-			"kms_key_arn": "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

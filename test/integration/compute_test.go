@@ -13,16 +13,6 @@ func TestComputeModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/compute",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                      "dev",
-			"region":                   "eu-north-1",
-			"vpc_id":                   "vpc-12345678",
-			"public_subnet_ids":        []string{"subnet-12345678"},
-			"private_subnet_ids":       []string{"subnet-87654321"},
-			"kms_key_arn":              "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-			"app_instance_profile_name": "app-instance-profile",
-			"bastion_allowed_cidr":     "0.0.0.0/0",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -43,16 +33,6 @@ func TestComputeEBSEncryption(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/compute",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                      "dev",
-			"region":                   "eu-north-1",
-			"vpc_id":                   "vpc-12345678",
-			"public_subnet_ids":        []string{"subnet-12345678"},
-			"private_subnet_ids":       []string{"subnet-87654321"},
-			"kms_key_arn":              "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-			"app_instance_profile_name": "app-instance-profile",
-			"bastion_allowed_cidr":     "0.0.0.0/0",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)
@@ -68,16 +48,6 @@ func TestComputeUserData(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/compute",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":                      "dev",
-			"region":                   "eu-north-1",
-			"vpc_id":                   "vpc-12345678",
-			"public_subnet_ids":        []string{"subnet-12345678"},
-			"private_subnet_ids":       []string{"subnet-87654321"},
-			"kms_key_arn":              "arn:aws:kms:eu-north-1:123456789012:key/12345678",
-			"app_instance_profile_name": "app-instance-profile",
-			"bastion_allowed_cidr":     "0.0.0.0/0",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

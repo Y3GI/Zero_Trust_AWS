@@ -13,10 +13,6 @@ func TestSecurityModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/security",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":    "dev",
-			"region": "eu-north-1",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -41,10 +37,6 @@ func TestSecurityKMSRotation(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/security",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":    "dev",
-			"region": "eu-north-1",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)
@@ -61,10 +53,6 @@ func TestSecurityIAMPolicies(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/security",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":    "dev",
-			"region": "eu-north-1",
-		},
 	})
 
 	terraform.InitAndPlan(t, terraformOptions)

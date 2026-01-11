@@ -13,10 +13,6 @@ func TestCertificatesModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/certificates",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":    "dev",
-			"region": "eu-north-1",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)

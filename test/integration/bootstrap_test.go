@@ -13,11 +13,6 @@ func TestBootstrapModule(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir:    "../envs/dev/bootstrap",
 		TerraformBinary: "terraform",
-		Vars: map[string]interface{}{
-			"env":        "dev",
-			"region":     "eu-north-1",
-			"kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-		},
 	})
 
 	defer terraform.Destroy(t, terraformOptions)
