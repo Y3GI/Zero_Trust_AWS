@@ -207,6 +207,46 @@ init_module() {
     return 0
 }
 
+# Function to compare local state with S3 and decide if deployment is needed
+check_state_changes() {
+    local module=$1
+    local module_path="$ENVS_DEV_DIR/$module"
+    
+    # For bootstrap, state is local only (not synced to S3 during init)
+    if [[ "$module" == "bootstrap" ]]; then
+        return 0  # Always proceed with bootstrap (has special handling)
+    fi
+    
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    
+    # Check if S3 state exists
+    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "Comparing local and S3 states for $module..."
+        
+        # Download S3 state to temp file
+        if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" /tmp/s3_${module}.tfstate --region eu-north-1 > /dev/null 2>&1; then
+            # Compare checksums
+            LOCAL_CHECKSUM=$(md5sum "$module_path/terraform.tfstate" 2>/dev/null | awk '{print $1}')
+            S3_CHECKSUM=$(md5sum /tmp/s3_${module}.tfstate 2>/dev/null | awk '{print $1}')
+            
+            rm -f /tmp/s3_${module}.tfstate
+            
+            if [[ "$LOCAL_CHECKSUM" == "$S3_CHECKSUM" ]]; then
+                print_info "$module state is unchanged"
+                return 1  # Signal to skip deployment
+            else
+                print_info "$module state has changed - will update S3"
+                return 0  # Signal to proceed with deployment
+            fi
+        fi
+    fi
+    
+    # No S3 state exists yet, proceed with deployment
+    return 0
+}
+
 # Function to deploy a module
 deploy_module() {
     local module=$1
@@ -240,9 +280,22 @@ deploy_module() {
         return 1
     fi
     
-    # Handle bootstrap - import existing S3 buckets AFTER init (needed for import to work)
+    # Handle bootstrap - restore state from S3 if unchanged
     if [[ "$module" == "bootstrap" ]]; then
         handle_bootstrap_import
+        # If bootstrap state was adopted from S3 (no changes), skip deployment
+        if [[ "$BOOTSTRAP_STATE_ADOPTED" == true ]]; then
+            print_success "bootstrap already up-to-date (no changes needed)"
+            return 0
+        fi
+    fi
+    
+    # Check if state has changed compared to S3 (for all non-bootstrap modules)
+    if [[ "$module" != "bootstrap" ]]; then
+        if ! check_state_changes "$module"; then
+            print_success "$module already up-to-date (no changes needed)"
+            return 0
+        fi
     fi
     
     if [[ "$DRY_RUN" == true ]]; then
@@ -354,44 +407,64 @@ EOF
 handle_bootstrap_import() {
     local module_path="$ENVS_DEV_DIR/bootstrap"
     
-    print_info "Checking for existing bootstrap resources in AWS..."
+    print_info "Checking for existing bootstrap state in S3..."
     
     # Check if terraform state bucket already exists
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
     STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/bootstrap/terraform.tfstate"
     
-    if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
-        print_info "S3 state bucket already exists: $STATE_BUCKET"
-        print_info "Importing existing bootstrap buckets into Terraform state..."
+    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "Bootstrap state file found in S3, comparing with local..."
         
-        # Initialize first (needed for import)
-        if ! terraform -chdir="$module_path" init -no-color > /dev/null 2>&1; then
-            print_warning "Could not initialize bootstrap for import"
-            return 0
-        fi
-        
-        # Import terraform state bucket
-        print_info "Importing: aws_s3_bucket.terraform_state"
-        if terraform -chdir="$module_path" import -no-color aws_s3_bucket.terraform_state "$STATE_BUCKET" > /tmp/import_state.log 2>&1; then
-            print_success "Imported terraform_state bucket"
-        else
-            print_warning "Failed to import terraform_state bucket:"
-            grep -i "error\|failed" /tmp/import_state.log | head -3 || cat /tmp/import_state.log | head -5
-        fi
-        
-        # Import CloudTrail bucket (find it by pattern)
-        CLOUDTRAIL_BUCKET=$(aws s3 ls --region eu-north-1 2>/dev/null | grep "dev-ztna-audit-logs" | awk '{print $3}' | head -1)
-        if [[ -n "$CLOUDTRAIL_BUCKET" ]]; then
-            print_info "Importing: aws_s3_bucket.cloudtrail_bucket"
-            if terraform -chdir="$module_path" import -no-color aws_s3_bucket.cloudtrail_bucket "$CLOUDTRAIL_BUCKET" > /tmp/import_cloudtrail.log 2>&1; then
-                print_success "Imported cloudtrail_bucket"
+        # Download S3 state to temp file for comparison
+        if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" /tmp/s3_bootstrap.tfstate --region eu-north-1 > /dev/null 2>&1; then
+            # Check if local state exists
+            if [[ -f "$module_path/terraform.tfstate" ]]; then
+                # Compare checksums
+                LOCAL_CHECKSUM=$(md5sum "$module_path/terraform.tfstate" 2>/dev/null | awk '{print $1}')
+                S3_CHECKSUM=$(md5sum /tmp/s3_bootstrap.tfstate 2>/dev/null | awk '{print $1}')
+                
+                if [[ "$LOCAL_CHECKSUM" == "$S3_CHECKSUM" ]]; then
+                    print_info "Local and S3 bootstrap states are identical"
+                    print_info "Adopting S3 state (skipping deployment)"
+                    rm -f /tmp/s3_bootstrap.tfstate
+                    # Set flag to skip deployment
+                    BOOTSTRAP_STATE_ADOPTED=true
+                    return 0
+                else
+                    print_info "Local and S3 bootstrap states differ"
+                    print_info "Deleting old S3 state and uploading new local state..."
+                    
+                    # Delete old state from S3
+                    aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
+                    
+                    # Upload new state
+                    if aws s3 cp "$module_path/terraform.tfstate" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
+                        print_success "New bootstrap state uploaded to S3"
+                    else
+                        print_warning "Failed to upload new bootstrap state"
+                    fi
+                fi
             else
-                print_warning "Failed to import cloudtrail_bucket:"
-                grep -i "error\|failed" /tmp/import_cloudtrail.log | head -3 || cat /tmp/import_cloudtrail.log | head -5
+                # No local state, restore from S3
+                print_info "No local state found, restoring from S3..."
+                if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "$module_path/terraform.tfstate" --region eu-north-1 > /dev/null 2>&1; then
+                    print_success "Bootstrap state restored from S3"
+                    # Set flag to skip deployment
+                    BOOTSTRAP_STATE_ADOPTED=true
+                    return 0
+                else
+                    print_warning "Failed to restore bootstrap state from S3"
+                fi
             fi
+            
+            rm -f /tmp/s3_bootstrap.tfstate
+        else
+            print_warning "Failed to download bootstrap state from S3"
         fi
-        
-        print_success "Bootstrap bucket imports completed"
+    else
+        print_info "No existing bootstrap state in S3 (first deployment)"
     fi
 }
 
