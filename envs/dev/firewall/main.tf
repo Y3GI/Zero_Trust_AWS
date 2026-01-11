@@ -1,14 +1,29 @@
-provider "aws" {
+terraform {
+    backend "s3" {}
+}
 
+provider "aws" {
     region  = "eu-north-1"
 }
 
-# Get the VPC outputs
-data "terraform_remote_state" "vpc" {
-    backend = "local"
+data "aws_caller_identity" "current" {}
+
+# Read from S3 backend
+data "terraform_remote_state" "vpc_s3" {
+    backend = "s3"
     config = {
-        path = "../vpc/terraform.tfstate"
+        bucket         = "dev-terraform-state-${data.aws_caller_identity.current.account_id}"
+        key            = "dev/vpc/terraform.tfstate"
+        region         = "eu-north-1"
+        encrypt        = true
+        use_lockfile   = true
+        skip_credentials_validation = true
     }
+}
+
+# Use S3 state directly
+locals {
+    vpc_state = data.terraform_remote_state.vpc_s3.outputs
 }
 
 module "firewall" {
@@ -17,9 +32,9 @@ module "firewall" {
     env                 = "dev"
     region              = "eu-north-1"
     
-    # Pass VPC configuration (use try() to handle destroyed dependencies during destroy)
-    vpc_id              = try(data.terraform_remote_state.vpc.outputs.vpc_id, "vpc-destroyed")
-    public_subnet_ids   = try(data.terraform_remote_state.vpc.outputs.public_subnet_ids, [])
+    # Pass VPC configuration from remote state with fallback to local
+    vpc_id              = try(local.vpc_state.vpc_id, "vpc-error")
+    public_subnet_ids   = try(local.vpc_state.public_subnet_ids, [])
 }
 
 output "firewall_id" {

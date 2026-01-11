@@ -1,3 +1,14 @@
+# Terraform State Locking Table Outputs
+output "terraform_locks_table_name" {
+    description = "The name of the DynamoDB table for Terraform state locking"
+    value       = aws_dynamodb_table.terraform_locks.name
+}
+
+output "terraform_locks_table_arn" {
+    description = "The ARN of the DynamoDB table for Terraform state locking"
+    value       = aws_dynamodb_table.terraform_locks.arn
+}
+
 # DynamoDB Table Outputs
 output "dynamodb_table_name" {
     description = "The name of the DynamoDB table"

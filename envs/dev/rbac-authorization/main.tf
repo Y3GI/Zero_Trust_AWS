@@ -1,14 +1,12 @@
-provider "aws" {
+terraform {
+    backend "s3" {}
+}
 
+provider "aws" {
     region  = "eu-north-1"
 }
 
-# Get outputs from security module
-data "terraform_remote_state" "security" {
-    backend = "local"
-    config = { path = "../security/terraform.tfstate" }
-}
-
+# No external dependencies required - rbac-authorization is self-contained
 module "rbac_authorization" {
     source = "../../../modules/rbac-authorization"
 

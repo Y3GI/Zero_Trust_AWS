@@ -1,22 +1,42 @@
-provider "aws" {
+terraform {
+    backend "s3" {}
+}
 
+provider "aws" {
     region  = "eu-north-1"
 }
 
-# Get the VPC outputs from the vpc module
-data "terraform_remote_state" "vpc" {
-    backend = "local"
+data "aws_caller_identity" "current" {}
+
+# Try S3 backend first (may not have state yet), suppress errors and fall back to local
+data "terraform_remote_state" "vpc_s3" {
+    backend = "s3"
     config = {
-        path = "../vpc/terraform.tfstate"
+        bucket         = "dev-terraform-state-${data.aws_caller_identity.current.account_id}"
+        key            = "dev/vpc/terraform.tfstate"
+        region         = "eu-north-1"
+        encrypt        = true
+        use_lockfile   = true
+        skip_credentials_validation = true
     }
 }
 
-# Get the Security module outputs
-data "terraform_remote_state" "security" {
-    backend = "local"
+data "terraform_remote_state" "security_s3" {
+    backend = "s3"
     config = {
-        path = "../security/terraform.tfstate"
+        bucket         = "dev-terraform-state-${data.aws_caller_identity.current.account_id}"
+        key            = "dev/security/terraform.tfstate"
+        region         = "eu-north-1"
+        encrypt        = true
+        use_lockfile   = true
+        skip_credentials_validation = true
     }
+}
+
+# Use S3 state directly
+locals {
+    vpc_state      = data.terraform_remote_state.vpc_s3.outputs
+    security_state = data.terraform_remote_state.security_s3.outputs
 }
 
 module "compute" {
@@ -27,15 +47,16 @@ module "compute" {
     bastion_allowed_cidr        = "10.0.1.0/24"
     instance_type               = "t3.micro"
     
-    # Pass network configuration from VPC module (use try() to handle destroyed dependencies during destroy)
-    vpc_id              = try(data.terraform_remote_state.vpc.outputs.vpc_id, "vpc-destroyed")
-    public_subnet_ids   = try(data.terraform_remote_state.vpc.outputs.public_subnet_ids, [])
-    private_subnet_ids  = try(data.terraform_remote_state.vpc.outputs.private_subnet_ids, [])
+    # Pass network configuration from remote state with fallback to local
+    vpc_id              = try(local.vpc_state.vpc_id, "vpc-error")
+    public_subnet_ids   = try(local.vpc_state.public_subnet_ids, [])
+    private_subnet_ids  = try(local.vpc_state.private_subnet_ids, [])
     
-    # Pass security configuration (use try() to handle destroyed dependencies during destroy)
-    kms_key_arn                 = try(data.terraform_remote_state.security.outputs.kms_key_arn, "arn:aws:kms:eu-north-1:000000000000:key/destroyed")
-    app_instance_profile_name   = try(data.terraform_remote_state.security.outputs.app_instance_profile_name, "destroyed")
+    # Pass security configuration with fallback to local
+    kms_key_arn                 = try(local.security_state.kms_key_arn, "arn:aws:kms:eu-north-1:000000000000:key/error")
+    app_instance_profile_name   = try(local.security_state.app_instance_profile_name, "error")
 }
+
 
 output "bastion_instance_id" {
     description = "The ID of the Bastion host instance"

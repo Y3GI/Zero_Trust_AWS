@@ -21,7 +21,6 @@ ENVS_DEV_DIR="$PROJECT_ROOT/envs/dev"
 PLANS_DIR="$PROJECT_ROOT/terraform-plans"
 
 # Variables
-DESTROY=false
 TARGET_MODULE=""
 DRY_RUN=false
 AUTO_APPROVE=false
@@ -29,7 +28,6 @@ AUTO_APPROVE=false
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --destroy) DESTROY=true; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
         --auto-approve) AUTO_APPROVE=true; shift ;;
         --module=*) TARGET_MODULE="${1#*=}"; shift ;;
@@ -39,32 +37,17 @@ done
 
 # Deployment order (respects dependencies)
 DEPLOYMENT_ORDER=(
-    "vpc"
-    "security"
     "bootstrap"
+    "security"
+    "data_store"
+    "vpc"
     "firewall"
     "compute"
-    "data_store"
     "monitoring"
     "vpc-endpoints"
     "secrets"
     "rbac-authorization"
     "certificates"
-)
-
-# Destroy order (reverse of deployment)
-DESTROY_ORDER=(
-    "certificates"
-    "rbac-authorization"
-    "secrets"
-    "vpc-endpoints"
-    "monitoring"
-    "data_store"
-    "compute"
-    "firewall"
-    "bootstrap"
-    "security"
-    "vpc"
 )
 
 # Function to print section headers
@@ -96,6 +79,107 @@ print_info() {
     echo -e "${BLUE}ℹ $1${NC}"
 }
 
+# Function to check and configure S3 backend if available
+configure_backend() {
+    local module=$1
+    local module_path="$ENVS_DEV_DIR/$module"
+    
+    # Skip bootstrap (it uses local backend and uploads to S3 manually after)
+    if [[ "$module" == "bootstrap" ]]; then
+        return 0
+    fi
+    
+    # Check if S3 state bucket exists
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    
+    if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "S3 state bucket found (${STATE_BUCKET}), configuring S3 backend..."
+        
+        # Check if DynamoDB locks table exists (created by data_store)
+        # If it doesn't exist yet, we'll configure S3 without locking initially
+        if aws dynamodb describe-table --table-name "dev-terraform-locks" --region eu-north-1 > /dev/null 2>&1; then
+            print_info "DynamoDB locks table found, configuring S3 backend with locking..."
+            DYNAMODB_CONFIG="dynamodb_table = \"dev-terraform-locks\""
+        else
+            print_info "DynamoDB locks table not found yet, configuring S3 backend without locking (will use local locking)"
+            DYNAMODB_CONFIG="skip_credentials_validation = false"
+        fi
+        
+        # Create backend config file (with or without DynamoDB)
+        cat > "$module_path/backend-config.hcl" << EOF
+bucket         = "${STATE_BUCKET}"
+key            = "dev/${module}/terraform.tfstate"
+region         = "eu-north-1"
+encrypt        = true
+${DYNAMODB_CONFIG}
+EOF
+        
+        # Reconfigure if already initialized
+        if [[ -d "$module_path/.terraform" ]]; then
+            print_info "Reconfiguring $module backend to use S3..."
+            terraform -chdir="$module_path" init -reconfigure -backend-config=backend-config.hcl -no-color > /tmp/${module}_init.log 2>&1 || true
+        fi
+    else
+        print_info "S3 state bucket not found yet (${STATE_BUCKET}), using local state"
+    fi
+    
+    return 0
+}
+
+# Function to migrate bootstrap state from local to S3 (after S3 bucket is created)
+migrate_bootstrap_to_s3() {
+    local module="bootstrap"
+    local module_path="$ENVS_DEV_DIR/$module"
+    
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    
+    # Check if S3 bucket exists and bootstrap state exists locally
+    if [[ -f "$module_path/terraform.tfstate" ]] && aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "Uploading bootstrap state to S3..."
+        
+        # Upload the local state file to S3
+        if aws s3 cp "$module_path/terraform.tfstate" "s3://${STATE_BUCKET}/dev/bootstrap/terraform.tfstate" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
+            print_success "Bootstrap state uploaded to S3"
+        else
+            print_warning "Failed to upload bootstrap state to S3"
+        fi
+    fi
+}
+
+# Function to initialize a module
+init_module() {
+    local module=$1
+    local module_path="$ENVS_DEV_DIR/$module"
+    
+    # Check if terraform is already initialized
+    if [[ -d "$module_path/.terraform" ]]; then
+        return 0
+    fi
+    
+    print_info "Initializing $module..."
+    
+    # If backend-config exists (from configure_backend), use it
+    if [[ -f "$module_path/backend-config.hcl" ]]; then
+        if ! terraform -chdir="$module_path" init -backend-config=backend-config.hcl -no-color > /tmp/${module}_init.log 2>&1; then
+            print_error "$module initialization failed"
+            print_error "Error details:"
+            cat /tmp/${module}_init.log
+            return 1
+        fi
+    else
+        if ! terraform -chdir="$module_path" init -no-color > /tmp/${module}_init.log 2>&1; then
+            print_error "$module initialization failed"
+            print_error "Error details:"
+            cat /tmp/${module}_init.log
+            return 1
+        fi
+    fi
+    print_success "$module initialized"
+    return 0
+}
+
 # Function to deploy a module
 deploy_module() {
     local module=$1
@@ -114,67 +198,39 @@ deploy_module() {
     
     print_info "Deploying: $module"
     
+    # Always clean .terraform to force re-initialization when backend block is present
+    if [[ -d "$module_path/.terraform" ]]; then
+        rm -rf "$module_path/.terraform"
+    fi
+    
+    # Configure backend if S3 is available (skipped for bootstrap)
+    configure_backend "$module"
+    
+    # Initialize the module with backend config if available
+    if ! init_module "$module"; then
+        return 1
+    fi
+    
     if [[ "$DRY_RUN" == true ]]; then
         terraform -chdir="$module_path" plan -no-color 2>&1 | head -50
         print_success "$module (dry-run completed)"
         return 0
     fi
     
-    # Check if terraform is initialized
-    if [[ ! -d "$module_path/.terraform" ]]; then
-        print_info "Initializing $module..."
-        if ! terraform -chdir="$module_path" init -no-color > /tmp/${module}_init.log 2>&1; then
-            print_error "$module initialization failed"
-            print_error "Error details:"
-            cat /tmp/${module}_init.log
-            return 1
-        fi
-    fi
-    
-    # Check if module is already deployed (has resources in state)
-    resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "$resource_count" -gt 0 ]]; then
-        print_success "$module already deployed (contains $resource_count resources)"
-        return 0
-    fi
-    
-    # Apply the configuration
+    # Apply the configuration (always run, even if already deployed - to handle updates)
     if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
-        print_success "$module deployed"
+        # Check if this was a create or update
+        resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$resource_count" -gt 0 ]]; then
+            print_success "$module deployed/updated (contains $resource_count resources)"
+        else
+            print_success "$module deployed"
+        fi
         return 0
     else
         print_error "$module deployment failed"
         print_error "Error details:"
         cat /tmp/${module}_apply.log
-        return 1
-    fi
-}
-
-# Function to destroy a module
-destroy_module() {
-    local module=$1
-    local module_path="$ENVS_DEV_DIR/$module"
-    
-    if [[ ! -d "$module_path" ]]; then
-        print_warning "Module directory not found: $module"
-        return 1
-    fi
-    
-    print_info "Destroying: $module"
-    
-    # Check if terraform is initialized
-    if [[ ! -d "$module_path/.terraform" ]]; then
-        print_warning "$module not deployed, skipping"
-        return 0
-    fi
-    
-    # Destroy the configuration
-    if terraform -chdir="$module_path" destroy -auto-approve -no-color > /tmp/${module}_destroy.log 2>&1; then
-        print_success "$module destroyed"
-        return 0
-    else
-        print_error "$module destruction failed"
-        print_info "Check logs: cat /tmp/${module}_destroy.log"
         return 1
     fi
 }
@@ -189,7 +245,16 @@ get_module_status() {
         return
     fi
     
-    if [[ -f "$module_path/terraform.tfstate" ]]; then
+    # Check if module is initialized
+    if [[ ! -d "$module_path/.terraform" ]]; then
+        echo "NOT_DEPLOYED"
+        return
+    fi
+    
+    # For initialized modules, check if there are resources in state
+    # This works with both local and remote state
+    local resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$resource_count" -gt 0 ]]; then
         echo "DEPLOYED"
     else
         echo "NOT_DEPLOYED"
@@ -282,37 +347,16 @@ fi
 
 echo ""
 
-# Execute deployment or destruction
-if [[ "$DESTROY" == true ]]; then
-    print_header "Starting Destruction"
-    
-    failed_modules=()
-    for module in "${DESTROY_ORDER[@]}"; do
-        if ! destroy_module "$module"; then
-            failed_modules+=("$module")
-        fi
-        echo ""
-    done
-    
-    # Summary
-    print_header "Destruction Summary"
-    if [[ ${#failed_modules[@]} -eq 0 ]]; then
-        print_success "All modules destroyed successfully"
-    else
-        print_error "Failed to destroy modules: ${failed_modules[*]}"
+# Execute deployment
+if [[ -n "$TARGET_MODULE" ]]; then
+    # Deploy single module
+    print_header "Single Module Deployment: $TARGET_MODULE"
+    if ! deploy_module "$TARGET_MODULE"; then
         exit 1
     fi
 else
-    # Deployment
-    if [[ -n "$TARGET_MODULE" ]]; then
-        # Deploy single module
-        print_header "Single Module Deployment: $TARGET_MODULE"
-        if ! deploy_module "$TARGET_MODULE"; then
-            exit 1
-        fi
-    else
-        # Deploy all modules
-        print_header "Starting Full Deployment"
+    # Deploy all modules
+    print_header "Starting Full Deployment"
         
         failed_modules=()
         for module in "${DEPLOYMENT_ORDER[@]}"; do
@@ -321,6 +365,12 @@ else
                 print_error "Stopping deployment due to failure in $module"
                 break
             fi
+            
+            # After bootstrap is deployed, migrate it to S3
+            if [[ "$module" == "bootstrap" ]]; then
+                migrate_bootstrap_to_s3
+            fi
+            
             echo ""
         done
         
@@ -337,10 +387,9 @@ else
             print_error "Failed to deploy modules: ${failed_modules[*]}"
             exit 1
         fi
-    fi
 fi
 
 echo ""
-print_success "$([ "$DESTROY" = true ] && echo 'Destruction' || echo 'Deployment') completed!"
+print_success "Deployment completed!"
 echo ""
 

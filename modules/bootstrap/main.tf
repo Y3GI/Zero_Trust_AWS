@@ -1,20 +1,43 @@
 terraform{
-    backend "s3"{
-        bucket = "terraform-state"
-        key = "terraform.tfstate"
-        region = var.region
-        dynamodb_table = "terraform-state"
+    # Bootstrap uses local state only
+    # It creates the S3 bucket and DynamoDB table for other modules to use
+}
 
-        tags = merge(
-            var.tags,
-            {
-                Name = "${var.env}-s3"
-            }
-        )
+# Get current AWS account ID
+data "aws_caller_identity" "current" {}
+
+# ===============================================
+# S3 BUCKET FOR TERRAFORM STATE
+# ===============================================
+
+resource "aws_s3_bucket" "terraform_state" {
+    bucket        = "${var.env}-terraform-state-${data.aws_caller_identity.current.account_id}"
+    force_destroy = true # Only for Dev; remove for Prod
+    tags          = var.tags
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+    bucket = aws_s3_bucket.terraform_state.id
+    versioning_configuration {
+        status = "Enabled"
     }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+    bucket = aws_s3_bucket.terraform_state.id
+
+    rule {
+        apply_server_side_encryption_by_default {
+            sse_algorithm     = "aws:kms"
+            kms_master_key_id = var.kms_key_id
+        }
+        bucket_key_enabled = true
+    }
+}
+
+# ===============================================
 # S3 BUCKET FOR CLOUDTRAIL
+# ===============================================
 
 # 1. S3 Bucket for Long-term Storage
 resource "random_id" "trail_suffix" {

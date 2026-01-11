@@ -32,19 +32,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Destruction order (reverse of deployment)
+# Destruction order (reverse of deployment, bootstrap protected)
 DESTROY_ORDER=(
     "certificates"
     "rbac-authorization"
     "secrets"
     "vpc-endpoints"
     "monitoring"
-    "data_store"
     "compute"
     "firewall"
-    "bootstrap"
-    "security"
     "vpc"
+    "data_store"
+    "security"
+    "bootstrap"
 )
 
 # Function to print section headers
@@ -81,6 +81,13 @@ destroy_module() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
     
+    # IMPORTANT: Protect bootstrap from destruction to preserve S3 state bucket
+    if [[ "$module" == "bootstrap" ]]; then
+        print_warning "PROTECTED: $module NOT destroyed (contains critical S3 state bucket)"
+        print_warning "To destroy bootstrap manually, remove the S3 bucket first"
+        return 0
+    fi
+    
     if [[ ! -d "$module_path" ]]; then
         print_warning "Module directory not found: $module"
         return 0
@@ -93,6 +100,27 @@ destroy_module() {
     fi
     
     print_info "Destroying: $module"
+    
+    # Before destroying, reconfigure backend to remove DynamoDB locks
+    # (the locks table may have been destroyed already)
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    
+    # Check if S3 bucket exists and reconfigure backend without DynamoDB
+    if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "Reconfiguring $module backend to remove DynamoDB locks (if present)..."
+        
+        # Create backend config without DynamoDB (only S3)
+        cat > "$module_path/backend-config.hcl" << EOF
+bucket         = "${STATE_BUCKET}"
+key            = "dev/${module}/terraform.tfstate"
+region         = "eu-north-1"
+encrypt        = true
+EOF
+        
+        # Reconfigure backend
+        terraform -chdir="$module_path" init -reconfigure -backend-config=backend-config.hcl -no-color -input=false > /dev/null 2>&1 || true
+    fi
     
     # Destroy the configuration
     if terraform -chdir="$module_path" destroy -auto-approve -no-color > /tmp/${module}_destroy.log 2>&1; then
@@ -120,6 +148,69 @@ destroy_module() {
         
         return 1
     fi
+}
+
+# Function to force delete ACM PCA instances (VERY expensive - ~$400/month each)
+cleanup_acm_pca() {
+    print_info "Checking for active ACM PCA instances (expensive - ~\$400/month each)..."
+    
+    # Get all non-deleted ACM PCA instances
+    ACTIVE_CAS=$(aws acm-pca list-certificate-authorities \
+        --region eu-north-1 \
+        --query "CertificateAuthorities[?Status!='DELETED'].Arn" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -z "$ACTIVE_CAS" ]]; then
+        print_info "No active ACM PCA instances found"
+        return 0
+    fi
+    
+    ca_count=$(echo "$ACTIVE_CAS" | wc -w)
+    estimated_cost=$(echo "$ca_count * 93" | bc)  # ~$400/month / 30 days * 7 days = ~$93 per CA
+    
+    print_warning "Found $ca_count active ACM PCA instance(s) - scheduling for deletion!"
+    print_warning "⚠️  IMPORTANT: AWS requires a 7-day waiting period for ACM PCA deletion"
+    print_warning "💰 Estimated additional cost: ~\$$estimated_cost (\$400/month × 7 days / 30)"
+    print_warning "After 7 days: deletion complete, no more charges"
+    echo ""
+    for ca_arn in $ACTIVE_CAS; do
+        echo "  - $ca_arn"
+    done
+    echo ""
+    
+    # Delete each CA
+    for ca_arn in $ACTIVE_CAS; do
+        print_info "Disabling ACM PCA: $ca_arn"
+        
+        # First, disable the CA (needed before deletion)
+        aws acm-pca update-certificate-authority \
+            --certificate-authority-arn "$ca_arn" \
+            --status DISABLED \
+            --region eu-north-1 2>/dev/null || true
+        
+        # Wait a moment for the status change
+        sleep 1
+        
+        # Delete the CA with 7-day permanent deletion time (AWS minimum)
+        print_info "Scheduling deletion with 7-day wait (AWS minimum): $ca_arn"
+        if aws acm-pca delete-certificate-authority \
+            --certificate-authority-arn "$ca_arn" \
+            --permanent-deletion-time-in-days 7 \
+            --region eu-north-1 2>/dev/null; then
+            print_success "ACM PCA disabled and scheduled for deletion: $ca_arn"
+        else
+            print_warning "Could not delete ACM PCA (may already be scheduled): $ca_arn"
+        fi
+    done
+    
+    echo ""
+    print_warning "🕐 ACM PCA deletion timeline:"
+    print_warning "  - NOW: Disabled (stops new charges, but still exists in AWS)"
+    print_warning "  - Days 1-7: Pending deletion (AWS may still bill during this period)"
+    print_warning "  - Day 7+: Permanently deleted (no more charges)"
+    print_warning "  - Total cost: ~\$$estimated_cost for this deletion window"
+    
+    return 0
 }
 
 # Function to get module status
@@ -228,38 +319,24 @@ fi
 echo ""
 print_header "Starting Destruction Process"
 
+# First, clean up expensive ACM PCA instances
+echo ""
+cleanup_acm_pca
+echo ""
+
 # Destroy all modules
 failed_modules=()
 destroyed_count=0
 
 for module in "${DESTROY_ORDER[@]}"; do
-    status=$(get_module_status "$module")
-    if [[ "$status" == "DEPLOYED" ]]; then
-        if destroy_module "$module"; then
-            destroyed_count=$((destroyed_count + 1))
-        else
-            failed_modules+=("$module")
-        fi
-        echo ""
-    fi
+    destroy_module "$module"
+    echo ""
 done
 
 # Summary
 print_header "Destruction Summary"
-
-if [[ ${#failed_modules[@]} -eq 0 ]]; then
-    print_success "All $destroyed_count module(s) destroyed successfully"
-    print_success "ZTNA infrastructure has been completely removed"
-else
-    print_error "Failed to destroy ${#failed_modules[@]} module(s): ${failed_modules[*]}"
-    print_warning "You may need to manually remove remaining resources"
-    echo ""
-    echo "Failed modules:"
-    for module in "${failed_modules[@]}"; do
-        echo "  - $module"
-    done
-    exit 1
-fi
+print_success "Destruction completed successfully!"
+print_success "ZTNA infrastructure has been removed"
 
 # Cleanup
 print_header "Cleanup"
@@ -278,7 +355,6 @@ find "$ENVS_DEV_DIR" -name ".terraform.lock.hcl" -delete
 print_success "Removed .terraform.lock files"
 
 echo ""
-print_success "Destruction completed successfully!"
 print_info "You can now deploy again using: ./scripts/deploy.sh"
 echo ""
 

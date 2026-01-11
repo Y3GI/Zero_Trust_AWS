@@ -20,3 +20,8 @@ variable "env"{
     type = string
     default = "dev"
 }
+
+variable "kms_key_id" {
+    description = "KMS key ID for encrypting the Terraform state S3 bucket"
+    type        = string
+}

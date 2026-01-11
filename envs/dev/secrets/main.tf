@@ -1,12 +1,29 @@
-provider "aws" {
+terraform {
+    backend "s3" {}
+}
 
+provider "aws" {
     region  = "eu-north-1"
 }
 
-# Get outputs from security module
-data "terraform_remote_state" "security" {
-    backend = "local"
-    config = { path = "../security/terraform.tfstate" }
+data "aws_caller_identity" "current" {}
+
+# Read from S3 backend
+data "terraform_remote_state" "security_s3" {
+    backend = "s3"
+    config = {
+        bucket         = "dev-terraform-state-${data.aws_caller_identity.current.account_id}"
+        key            = "dev/security/terraform.tfstate"
+        region         = "eu-north-1"
+        encrypt        = true
+        use_lockfile   = true
+        skip_credentials_validation = true
+    }
+}
+
+# Use S3 state directly
+locals {
+    security_state = data.terraform_remote_state.security_s3.outputs
 }
 
 module "secrets" {
@@ -14,8 +31,8 @@ module "secrets" {
 
     env                     = "dev"
     region                  = "eu-north-1"
-    kms_key_id              = try(data.terraform_remote_state.security.outputs.kms_key_id, "arn:aws:kms:eu-north-1:000000000000:key/destroyed")
-    app_instance_role_arn   = try(data.terraform_remote_state.security.outputs.app_instance_role_arn, "arn:aws:iam::000000000000:role/destroyed")
+    kms_key_id              = try(local.security_state.kms_key_id, "arn:aws:kms:eu-north-1:000000000000:key/error")
+    app_instance_role_arn   = try(local.security_state.app_instance_role_arn, "arn:aws:iam::000000000000:role/error")
 
     db_password             = var.db_password
     api_key_1               = var.api_key_1

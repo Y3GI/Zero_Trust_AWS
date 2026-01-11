@@ -9,6 +9,11 @@ resource "aws_kms_key" "main" {
     })
 }
 
+# Reference to the KMS key
+locals {
+    kms_key_id = aws_kms_key.main.id
+}
+
 # 2. Alias (Friendly Name)
 resource "aws_kms_alias" "main" {
     name          = "alias/${var.env}-ztna-key"
@@ -17,7 +22,7 @@ resource "aws_kms_alias" "main" {
 
 # 3. Key Policy (Strict Access Control)
 resource "aws_kms_key_policy" "main" {
-    key_id = aws_kms_key.main.id
+    key_id = local.kms_key_id
     policy = jsonencode({
         Version = "2012-10-17",
         Statement = [

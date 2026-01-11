@@ -18,6 +18,8 @@ resource "aws_acmpca_certificate_authority" "ca" {
         }
     }
 
+    permanent_deletion_time_in_days = 7
+
     tags = merge(var.tags, {
         Name    = "${var.env}-root-ca"
         Service = "CertificateManager"

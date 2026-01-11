@@ -44,7 +44,7 @@ output "cloudtrail_role_name" {
 # KMS Key Outputs
 output "kms_key_arn" {
     description = "ARN of the KMS key used for encrypting resources"
-    value       = aws_kms_key.main.arn
+    value       = try(aws_kms_key.main.arn, "")
 }
 
 output "kms_key_id" {

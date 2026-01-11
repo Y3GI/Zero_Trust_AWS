@@ -8,16 +8,17 @@ terraform {
 }
 
 # Check if log group already exists
-data "aws_cloudwatch_log_group" "vpc_flow_logs_check" {
-    name = "/aws/vpc/flow-logs/${var.env}"
-    
-    # Silently fail if not found (try will handle it)
+data "aws_cloudwatch_log_groups" "vpc_flow_logs_check" {
+    log_group_name_prefix = "/aws/vpc/flow-logs/${var.env}"
+}
+
+locals {
+    vpc_flow_logs_exists = length(data.aws_cloudwatch_log_groups.vpc_flow_logs_check.arns) > 0
 }
 
 # Create CloudWatch log group only if it doesn't exist
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-    # Only create if the log group doesn't already exist
-    count = try(data.aws_cloudwatch_log_group.vpc_flow_logs_check.arn != "", false) ? 0 : 1
+    count = local.vpc_flow_logs_exists ? 0 : 1
     
     name              = "/aws/vpc/flow-logs/${var.env}"
     retention_in_days = 30

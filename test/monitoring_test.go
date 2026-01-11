@@ -13,7 +13,6 @@ func TestMonitoringModule(t *testing.T) {
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
         TerraformDir:    "../modules/monitoring",
         TerraformBinary: "terraform",
-        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
             "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
@@ -43,7 +42,6 @@ func TestMonitoringCloudTrail(t *testing.T) {
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
         TerraformDir:    "../modules/monitoring",
         TerraformBinary: "terraform",
-        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
             "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
@@ -68,7 +66,6 @@ func TestMonitoringAlarms(t *testing.T) {
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
         TerraformDir:    "../modules/monitoring",
         TerraformBinary: "terraform",
-        TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
             "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
@@ -90,7 +87,6 @@ func TestMonitoringBudget(t *testing.T) {
 
     terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
         TerraformDir:    "../modules/monitoring",
-        TerraformBinary: "terraform",
         TerraformBinary: "terraform",
         Vars: map[string]interface{}{
             "environment": "test",
