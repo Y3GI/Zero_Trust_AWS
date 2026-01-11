@@ -14,6 +14,11 @@ resource "aws_s3_bucket" "terraform_state" {
     bucket        = "${var.env}-terraform-state-${data.aws_caller_identity.current.account_id}"
     force_destroy = true # Only for Dev; remove for Prod
     tags          = var.tags
+    
+    # If bucket already exists, adopt it instead of creating
+    lifecycle {
+        ignore_changes = all
+    }
 }
 
 resource "aws_s3_bucket_versioning" "terraform_state" {
@@ -48,6 +53,11 @@ resource "aws_s3_bucket" "cloudtrail_bucket" {
     bucket        = "${var.env}-ztna-audit-logs-${random_id.trail_suffix.hex}"
     force_destroy = true # Only for Dev; remove for Prod
     tags          = var.tags
+    
+    # If bucket already exists, adopt it instead of creating
+    lifecycle {
+        ignore_changes = all
+    }
 }
 
 # 2. Bucket Policy (Required for CloudTrail to write to S3)

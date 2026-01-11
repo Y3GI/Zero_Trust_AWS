@@ -224,14 +224,34 @@ cleanup_acm_pca() {
 get_module_status() {
     local module=$1
     
-    # Skip bootstrap - always check local status for it
+    # For bootstrap, check both local and S3 state
     if [[ "$module" == "bootstrap" ]]; then
         local module_path="$ENVS_DEV_DIR/$module"
+        
+        # Check local state first
         if [[ -d "$module_path/.terraform" ]]; then
             echo "DEPLOYED"
-        else
-            echo "NOT_DEPLOYED"
+            return
         fi
+        
+        # Also check if state exists in S3 (bootstrap uploads after deploy)
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+        STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+        STATE_KEY="dev/bootstrap/terraform.tfstate"
+        
+        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            # Check if it has resources
+            if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/bootstrap_state.json --region eu-north-1 > /dev/null 2>&1; then
+                if grep -q '"type":' /tmp/bootstrap_state.json 2>/dev/null; then
+                    rm -f /tmp/bootstrap_state.json
+                    echo "DEPLOYED"
+                    return
+                fi
+                rm -f /tmp/bootstrap_state.json
+            fi
+        fi
+        
+        echo "NOT_DEPLOYED"
         return
     fi
     

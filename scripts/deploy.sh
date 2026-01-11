@@ -195,6 +195,10 @@ deploy_module() {
         handle_monitoring_log_group
     fi
     
+    # Handle bootstrap - import existing S3 buckets if they exist
+    if [[ "$module" == "bootstrap" ]]; then
+        handle_bootstrap_import
+    fi
     
     print_info "Deploying: $module"
     
@@ -238,40 +242,93 @@ deploy_module() {
 # Function to get module status from S3 state (not local)
 get_module_status() {
     local module=$1
+    local module_path="$ENVS_DEV_DIR/$module"
     
-    # Skip bootstrap - always check local status for it
-    if [[ "$module" == "bootstrap" ]]; then
-        local module_path="$ENVS_DEV_DIR/$module"
-        if [[ -d "$module_path/.terraform" ]]; then
-            echo "DEPLOYED"
-        else
-            echo "NOT_DEPLOYED"
-        fi
-        return
-    fi
-    
-    # For other modules, check S3 state
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
     STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
     STATE_KEY="dev/${module}/terraform.tfstate"
     
-    # Check if state file exists in S3
-    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
-        # State file exists - check if it has resources
-        # Read the state file and check for resources
-        if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/${module}_state.json --region eu-north-1 > /dev/null 2>&1; then
-            # Check if state has any resources
-            if grep -q '"type":' /tmp/${module}_state.json 2>/dev/null; then
+    # For bootstrap, also check local state (it uses local backend)
+    if [[ "$module" == "bootstrap" ]]; then
+        # Check local state first
+        if [[ -f "$module_path/terraform.tfstate" ]]; then
+            if grep -q '"type":' "$module_path/terraform.tfstate" 2>/dev/null; then
                 echo "DEPLOYED"
-            else
-                echo "NOT_DEPLOYED"
+                return
             fi
-            rm -f /tmp/${module}_state.json
-        else
-            echo "NOT_DEPLOYED"
         fi
-    else
+        
+        # Also check if state exists in S3 (bootstrap uploads after deploy)
+        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/bootstrap_state.json --region eu-north-1 > /dev/null 2>&1; then
+                if grep -q '"type":' /tmp/bootstrap_state.json 2>/dev/null; then
+                    rm -f /tmp/bootstrap_state.json
+                    echo "DEPLOYED"
+                    return
+                fi
+                rm -f /tmp/bootstrap_state.json
+            fi
+        fi
+        
         echo "NOT_DEPLOYED"
+        return
+    fi
+    
+    # For other modules, check S3 state and actually query with terraform
+    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        # State file exists in S3
+        # Initialize terraform temporarily to check state
+        if [[ -d "$module_path" ]]; then
+            # Create a temporary backend config
+            cat > "$module_path/backend-config.hcl" << EOF
+bucket         = "${STATE_BUCKET}"
+key            = "${STATE_KEY}"
+region         = "eu-north-1"
+encrypt        = true
+skip_credentials_validation = true
+EOF
+            
+            # Initialize quietly (without .terraform output)
+            if terraform -chdir="$module_path" init -reconfigure -backend-config=backend-config.hcl -no-color -input=false > /dev/null 2>&1; then
+                # Use terraform to check state list
+                if terraform -chdir="$module_path" state list > /dev/null 2>&1; then
+                    resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
+                    if [[ "$resource_count" -gt 0 ]]; then
+                        echo "DEPLOYED"
+                        return
+                    fi
+                fi
+            fi
+        fi
+    fi
+    
+    echo "NOT_DEPLOYED"
+}
+
+# Function to handle bootstrap resource imports (if they already exist in AWS)
+handle_bootstrap_import() {
+    local module_path="$ENVS_DEV_DIR/bootstrap"
+    
+    print_info "Checking for existing bootstrap resources in AWS..."
+    
+    # Check if terraform state bucket already exists
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    
+    if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+        print_info "S3 state bucket already exists: $STATE_BUCKET"
+        print_info "Will adopt it into Terraform state"
+        
+        # Initialize first (needed for import)
+        if ! terraform -chdir="$module_path" init -no-color > /dev/null 2>&1; then
+            print_warning "Could not initialize bootstrap for import"
+            return 0
+        fi
+        
+        # Try to import the existing S3 buckets
+        terraform -chdir="$module_path" import -no-color aws_s3_bucket.terraform_state "$STATE_BUCKET" > /dev/null 2>&1 || true
+        
+        print_info "Bootstrap resources will be adopted"
     fi
 }
 
