@@ -30,10 +30,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.7.5
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Tidy Go modules
+        run: go mod tidy
 
       - name: Run Unit Tests (Security & Compliance)
         working-directory: ./test/unit
