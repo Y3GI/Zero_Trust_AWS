@@ -1,37 +1,32 @@
 package test
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/gruntwork-io/terratest/modules/terraform"
-    "github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCertificatesModule(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/certificates",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "domain_name": "*.example.com",
-            "environment": "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/certificates",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":    "dev",
+			"region": "eu-north-1",
+		},
+	})
 
-    defer terraform.Destroy(t, terraformOptions)
-    terraform.InitAndPlan(t, terraformOptions)
+	defer terraform.Destroy(t, terraformOptions)
+	terraform.InitAndApply(t, terraformOptions)
 
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify ACM certificate created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_acm_certificate.main")
-    
-    // Verify DNS validation method
-    certResource := planStruct.ResourceChangesMap["aws_acm_certificate.main"]
-    assert.NotNil(t, certResource)
-    
-    after := certResource.Change.After.(map[string]interface{})
-    assert.Equal(t, "DNS", after["validation_method"])
-    assert.Equal(t, "*.example.com", after["domain_name"])
+	// Verify root CA created
+	rootCAARN := terraform.Output(t, terraformOptions, "root_ca_arn")
+	assert.NotEmpty(t, rootCAARN, "Root CA ARN should not be empty")
+
+	// Verify root CA domain
+	rootCADomain := terraform.Output(t, terraformOptions, "root_ca_domain")
+	assert.NotEmpty(t, rootCADomain, "Root CA domain should not be empty")
 }

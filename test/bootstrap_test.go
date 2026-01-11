@@ -10,17 +10,28 @@ import (
 func TestBootstrapModule(t *testing.T) {
 	t.Parallel()
 
-	terraformOptions := &terraform.Options{
-		TerraformDir:   "../envs/dev/bootstrap",
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/bootstrap",
 		TerraformBinary: "terraform",
-		NoColor:        true,
-	}
+		Vars: map[string]interface{}{
+			"env":        "dev",
+			"region":     "eu-north-1",
+			"kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+		},
+	})
 
 	defer terraform.Destroy(t, terraformOptions)
-
 	terraform.InitAndApply(t, terraformOptions)
 
-	// Verify S3 bucket was created
-	s3BucketName := terraform.Output(t, terraformOptions, "s3_bucket_id")
-	assert.NotEmpty(t, s3BucketName, "S3 bucket name should not be empty")
+	// Verify Terraform state bucket created
+	tfStateBucket := terraform.Output(t, terraformOptions, "terraform_state_bucket_name")
+	assert.NotEmpty(t, tfStateBucket, "Terraform state bucket name should not be empty")
+
+	// Verify CloudTrail bucket created
+	cloudTrailBucket := terraform.Output(t, terraformOptions, "cloudtrail_bucket_name")
+	assert.NotEmpty(t, cloudTrailBucket, "CloudTrail bucket name should not be empty")
+
+	// Verify KMS key created
+	kmsKeyID := terraform.Output(t, terraformOptions, "kms_key_id")
+	assert.NotEmpty(t, kmsKeyID, "KMS key ID should not be empty")
 }

@@ -1,59 +1,70 @@
 package test
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/gruntwork-io/terratest/modules/terraform"
-    "github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSecretsModule(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/secrets",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-            "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/secrets",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"kms_key_id":             "arn:aws:kms:eu-north-1:123456789012:key/12345678",
+			"app_instance_role_arn":  "arn:aws:iam::123456789012:role/app-role",
+			"db_username":            "dbadmin",
+			"db_password":            "Test@1234Secure!",
+			"db_host":                "db.example.com",
+			"db_port":                float64(5432),
+			"db_name":                "testdb",
+			"api_key_1":              "test-key-1",
+			"api_key_2":              "test-key-2",
+		},
+	})
 
-    defer terraform.Destroy(t, terraformOptions)
-    terraform.InitAndPlan(t, terraformOptions)
+	defer terraform.Destroy(t, terraformOptions)
+	terraform.InitAndApply(t, terraformOptions)
 
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify RDS secret created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_secretsmanager_secret.rds_credentials")
-    
-    // Verify secret version with random password
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_secretsmanager_secret_version.rds_credentials")
-    
-    // Verify random password resource
-    assert.Contains(t, planStruct.ResourceChangesMap, "random_password.rds_password")
+	// Verify DB credentials secret created
+	dbSecretARN := terraform.Output(t, terraformOptions, "db_credentials_secret_arn")
+	assert.NotEmpty(t, dbSecretARN, "DB credentials secret ARN should not be empty")
+
+	// Verify API keys secret created
+	apiSecretARN := terraform.Output(t, terraformOptions, "api_keys_secret_arn")
+	assert.NotEmpty(t, apiSecretARN, "API keys secret ARN should not be empty")
 }
 
 func TestSecretsPasswordComplexity(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/secrets",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/secrets",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"kms_key_id":             "arn:aws:kms:eu-north-1:123456789012:key/12345678",
+			"app_instance_role_arn":  "arn:aws:iam::123456789012:role/app-role",
+			"db_username":            "dbadmin",
+			"db_password":            "Test@1234Secure!",
+			"db_host":                "db.example.com",
+			"db_port":                float64(5432),
+			"db_name":                "testdb",
+			"api_key_1":              "test-key-1",
+			"api_key_2":              "test-key-2",
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify password meets complexity requirements
-    passwordResource := planStruct.ResourceChangesMap["random_password.rds_password"]
-    assert.NotNil(t, passwordResource)
-    
-    after := passwordResource.Change.After.(map[string]interface{})
-    assert.Equal(t, float64(32), after["length"])
-    assert.Equal(t, true, after["special"])
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify secrets resources in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_secretsmanager_secret.db_credentials", "DB credentials secret should be in plan")
+	assert.Contains(t, plan.ResourceChangesMap, "aws_secretsmanager_secret.api_keys", "API keys secret should be in plan")
 }

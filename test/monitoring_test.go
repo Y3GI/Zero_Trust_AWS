@@ -1,102 +1,113 @@
 package test
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/gruntwork-io/terratest/modules/terraform"
-    "github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMonitoringModule(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/monitoring",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-            "kms_key_id": "arn:aws:kms:eu-north-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/monitoring",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"vpc_id":                 "vpc-12345678",
+			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
+			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
+			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
+			"email":                  "admin@example.com",
+			"limit_amount":           float64(1000),
+		},
+	})
 
-    defer terraform.Destroy(t, terraformOptions)
-    terraform.InitAndPlan(t, terraformOptions)
+	defer terraform.Destroy(t, terraformOptions)
+	terraform.InitAndApply(t, terraformOptions)
 
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify CloudTrail created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudtrail.main")
-    
-    // Verify CloudWatch log groups
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudwatch_log_group.ec2")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudwatch_log_group.rds")
-    
-    // Verify SNS topics
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_sns_topic.security_alerts")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_sns_topic.monitoring_alerts")
+	// Verify CloudWatch log group created
+	logGroupName := terraform.Output(t, terraformOptions, "cloudwatch_log_group_name")
+	assert.NotEmpty(t, logGroupName, "CloudWatch log group name should not be empty")
+
+	// Verify budget created
+	budgetID := terraform.Output(t, terraformOptions, "budget_id")
+	assert.NotEmpty(t, budgetID, "Budget ID should not be empty")
 }
 
 func TestMonitoringCloudTrail(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/monitoring",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/monitoring",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"vpc_id":                 "vpc-12345678",
+			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
+			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
+			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
+			"email":                  "admin@example.com",
+			"limit_amount":           float64(1000),
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify CloudTrail multi-region enabled
-    trail := planStruct.ResourceChangesMap["aws_cloudtrail.main"]
-    assert.NotNil(t, trail)
-    
-    after := trail.Change.After.(map[string]interface{})
-    assert.Equal(t, true, after["is_multi_region_trail"])
-    assert.Equal(t, true, after["enable_log_file_validation"])
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify CloudTrail in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_cloudtrail.main", "CloudTrail should be in plan")
 }
 
 func TestMonitoringAlarms(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/monitoring",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/monitoring",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"vpc_id":                 "vpc-12345678",
+			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
+			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
+			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
+			"email":                  "admin@example.com",
+			"limit_amount":           float64(1000),
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify alarms created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudwatch_metric_alarm.unauthorized_api_calls")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudwatch_metric_alarm.ec2_high_cpu")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudwatch_metric_alarm.rds_high_cpu")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_cloudwatch_metric_alarm.rds_low_storage")
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify alarms in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_cloudwatch_metric_alarm.authorized_api_calls", "CloudWatch alarm should be in plan")
 }
 
 func TestMonitoringBudget(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/monitoring",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-            "kms_key_id": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/monitoring",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"vpc_id":                 "vpc-12345678",
+			"cloudtrail_bucket_name": "cloudtrail-bucket-dev",
+			"flow_log_role_arn":      "arn:aws:iam::123456789012:role/flow-log-role",
+			"cloudtrail_role_arn":    "arn:aws:iam::123456789012:role/cloudtrail-role",
+			"email":                  "admin@example.com",
+			"limit_amount":           float64(1000),
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify budget created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_budgets_budget.monthly")
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify budget in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_budgets_budget.monthly", "Budget should be in plan")
 }

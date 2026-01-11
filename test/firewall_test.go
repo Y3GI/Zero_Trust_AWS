@@ -1,88 +1,75 @@
 package test
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/gruntwork-io/terratest/modules/terraform"
-    "github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFirewallModule(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/firewall",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "vpc_id": "vpc-12345678",
-            "vpc_cidr": "10.0.0.0/16",
-            "public_subnet_ids": []string{"subnet-12345678"},
-            "private_subnet_ids": []string{"subnet-87654321"},
-            "database_subnet_ids": []string{"subnet-11111111"},
-            "environment": "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/firewall",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                 "dev",
+			"region":              "eu-north-1",
+			"vpc_id":              "vpc-12345678",
+			"public_subnet_ids":   []string{"subnet-12345678"},
+		},
+	})
 
-    defer terraform.Destroy(t, terraformOptions)
-    terraform.InitAndPlan(t, terraformOptions)
+	defer terraform.Destroy(t, terraformOptions)
+	terraform.InitAndApply(t, terraformOptions)
 
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify security groups created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_security_group.vpc_endpoints")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_security_group.ec2")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_security_group.rds")
+	// Verify firewall resources created
+	firewallID := terraform.Output(t, terraformOptions, "firewall_id")
+	assert.NotEmpty(t, firewallID, "Firewall ID should not be empty")
+
+	firewallPolicyID := terraform.Output(t, terraformOptions, "firewall_policy_id")
+	assert.NotEmpty(t, firewallPolicyID, "Firewall policy ID should not be empty")
 }
 
 func TestFirewallNACLs(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/firewall",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "vpc_id": "vpc-12345678",
-            "vpc_cidr": "10.0.0.0/16",
-            "public_subnet_ids": []string{"subnet-12345678"},
-            "private_subnet_ids": []string{"subnet-87654321"},
-            "database_subnet_ids": []string{"subnet-11111111"},
-            "environment": "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/firewall",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":               "dev",
+			"region":            "eu-north-1",
+			"vpc_id":            "vpc-12345678",
+			"public_subnet_ids": []string{"subnet-12345678"},
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify NACLs created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_network_acl.public")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_network_acl.private")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_network_acl.database")
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify firewall rule group in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_networkfirewall_rule_group.stateful", "Firewall rule group should be in plan")
 }
 
 func TestFirewallSecurityGroupRules(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/firewall",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "vpc_id": "vpc-12345678",
-            "vpc_cidr": "10.0.0.0/16",
-            "public_subnet_ids": []string{"subnet-12345678"},
-            "private_subnet_ids": []string{"subnet-87654321"},
-            "database_subnet_ids": []string{"subnet-11111111"},
-            "environment": "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/firewall",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":               "dev",
+			"region":            "eu-north-1",
+			"vpc_id":            "vpc-12345678",
+			"public_subnet_ids": []string{"subnet-12345678"},
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify VPC endpoint security group allows HTTPS from VPC
-    vpcEndpointSG := planStruct.ResourceChangesMap["aws_security_group.vpc_endpoints"]
-    assert.NotNil(t, vpcEndpointSG)
-    
-    // Verify RDS security group only allows PostgreSQL from EC2
-    rdsSG := planStruct.ResourceChangesMap["aws_security_group.rds"]
-    assert.NotNil(t, rdsSG)
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify firewall status endpoint in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_networkfirewall_firewall_policy.main", "Firewall policy should be in plan")
 }

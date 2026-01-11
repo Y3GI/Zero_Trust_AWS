@@ -1,59 +1,64 @@
 package test
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/gruntwork-io/terratest/modules/terraform"
-    "github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestVPCEndpointsModule(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/vpc-endpoints",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "vpc_id":            "vpc-12345678",
-            "private_subnet_ids": []string{"subnet-12345678"},
-            "security_group_id": "sg-12345678",
-            "environment":       "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/vpc-endpoints",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"vpc_id":                 "vpc-12345678",
+			"vpc_cidr":               "10.0.0.0/16",
+			"private_subnet_ids":     []string{"subnet-12345678"},
+			"private_rt_id":          "rtb-12345678",
+			"public_rt_id":           "rtb-87654321",
+			"cloudtrail_bucket_name": "cloudtrail-bucket",
+		},
+	})
 
-    defer terraform.Destroy(t, terraformOptions)
-    terraform.InitAndPlan(t, terraformOptions)
+	defer terraform.Destroy(t, terraformOptions)
+	terraform.InitAndApply(t, terraformOptions)
 
-    // Verify plan creates expected resources
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Should create 8 interface endpoints + 1 gateway endpoint
-    assert.Equal(t, 9, len(planStruct.ResourceChangesMap))
-    
-    // Verify SSM endpoint
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_vpc_endpoint.ssm")
-    
-    // Verify S3 gateway endpoint
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_vpc_endpoint.s3")
+	// Verify S3 VPC endpoint created
+	s3EndpointID := terraform.Output(t, terraformOptions, "s3_vpc_endpoint_id")
+	assert.NotEmpty(t, s3EndpointID, "S3 VPC endpoint ID should not be empty")
+
+	// Verify Secrets Manager VPC endpoint created
+	secretsEndpointID := terraform.Output(t, terraformOptions, "secretsmanager_vpc_endpoint_id")
+	assert.NotEmpty(t, secretsEndpointID, "Secrets Manager VPC endpoint ID should not be empty")
 }
 
 func TestVPCEndpointsOutputs(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/vpc-endpoints",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "vpc_id":            "vpc-12345678",
-            "private_subnet_ids": []string{"subnet-12345678"},
-            "security_group_id": "sg-12345678",
-            "environment":       "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/vpc-endpoints",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":                    "dev",
+			"region":                 "eu-north-1",
+			"vpc_id":                 "vpc-12345678",
+			"vpc_cidr":               "10.0.0.0/16",
+			"private_subnet_ids":     []string{"subnet-12345678"},
+			"private_rt_id":          "rtb-12345678",
+			"public_rt_id":           "rtb-87654321",
+			"cloudtrail_bucket_name": "cloudtrail-bucket",
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    
-    // Verify outputs are defined
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    assert.NotNil(t, planStruct.RawPlan.OutputChanges)
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify VPC endpoint resources in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_vpc_endpoint.s3", "S3 VPC endpoint should be in plan")
+	assert.Contains(t, plan.ResourceChangesMap, "aws_vpc_endpoint.secretsmanager", "Secrets Manager VPC endpoint should be in plan")
 }

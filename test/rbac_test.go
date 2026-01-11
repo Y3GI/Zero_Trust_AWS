@@ -1,54 +1,51 @@
 package test
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/gruntwork-io/terratest/modules/terraform"
-    "github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRBACModule(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/rbac-authorization",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/rbac-authorization",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":    "dev",
+			"region": "eu-north-1",
+		},
+	})
 
-    defer terraform.Destroy(t, terraformOptions)
-    terraform.InitAndPlan(t, terraformOptions)
+	defer terraform.Destroy(t, terraformOptions)
+	terraform.InitAndApply(t, terraformOptions)
 
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify IAM groups created
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_iam_group.developers")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_iam_group.operators")
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_iam_group.auditors")
+	// Verify IAM policies created
+	bastionPolicyARN := terraform.Output(t, terraformOptions, "bastion_policy_arn")
+	assert.NotEmpty(t, bastionPolicyARN, "Bastion policy ARN should not be empty")
+
+	appServerPolicyARN := terraform.Output(t, terraformOptions, "app_server_policy_arn")
+	assert.NotEmpty(t, appServerPolicyARN, "App server policy ARN should not be empty")
 }
 
 func TestRBACPolicies(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-        TerraformDir:    "../modules/rbac-authorization",
-        TerraformBinary: "terraform",
-        Vars: map[string]interface{}{
-            "environment": "test",
-        },
-    })
+	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
+		TerraformDir:    "../envs/dev/rbac-authorization",
+		TerraformBinary: "terraform",
+		Vars: map[string]interface{}{
+			"env":    "dev",
+			"region": "eu-north-1",
+		},
+	})
 
-    terraform.InitAndPlan(t, terraformOptions)
-    planStruct := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
-    
-    // Verify developer policy
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_iam_policy.developer_policy")
-    
-    // Verify operator policy
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_iam_policy.operator_policy")
-    
-    // Verify auditor policy
-    assert.Contains(t, planStruct.ResourceChangesMap, "aws_iam_policy.auditor_policy")
+	terraform.InitAndPlan(t, terraformOptions)
+	plan := terraform.InitAndPlanAndShowWithStruct(t, terraformOptions)
+
+	// Verify IAM policies in plan
+	assert.Contains(t, plan.ResourceChangesMap, "aws_iam_policy.bastion_policy", "Bastion policy should be in plan")
+	assert.Contains(t, plan.ResourceChangesMap, "aws_iam_policy.app_server_policy", "App server policy should be in plan")
 }
