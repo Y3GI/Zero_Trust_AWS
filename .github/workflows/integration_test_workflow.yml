@@ -57,7 +57,8 @@ jobs:
         run: go mod verify
 
       - name: Run Terratest Integration Tests
-        run: go test -v ./test/integration/... -timeout 60m
+        working-directory: ./test/integration
+        run: go test -v ./... -timeout 60m
         env:
           AWS_DEFAULT_REGION: eu-north-1
 
