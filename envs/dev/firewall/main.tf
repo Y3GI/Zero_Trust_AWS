@@ -16,7 +16,6 @@ data "terraform_remote_state" "vpc_s3" {
         key            = "dev/vpc/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true
-        use_lockfile   = true
         skip_credentials_validation = true
     }
 }

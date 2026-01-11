@@ -16,7 +16,6 @@ data "terraform_remote_state" "vpc_s3" {
         key            = "dev/vpc/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true
-        use_lockfile   = true
         skip_credentials_validation = true
     }
 }
@@ -28,7 +27,6 @@ data "terraform_remote_state" "security_s3" {
         key            = "dev/security/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true
-        use_lockfile   = true
         skip_credentials_validation = true
     }
 }
@@ -40,7 +38,6 @@ data "terraform_remote_state" "bootstrap_s3" {
         key            = "dev/bootstrap/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true
-        use_lockfile   = true
         skip_credentials_validation = true
     }
 }

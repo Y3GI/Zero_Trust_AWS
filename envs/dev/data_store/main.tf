@@ -16,7 +16,6 @@ data "terraform_remote_state" "security_s3" {
         key            = "dev/security/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true
-        use_lockfile   = true
         skip_credentials_validation = true
     }
 }
