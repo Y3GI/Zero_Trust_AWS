@@ -317,7 +317,7 @@ handle_bootstrap_import() {
     
     if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
         print_info "S3 state bucket already exists: $STATE_BUCKET"
-        print_info "Will adopt it into Terraform state"
+        print_info "Importing existing bootstrap buckets into Terraform state..."
         
         # Initialize first (needed for import)
         if ! terraform -chdir="$module_path" init -no-color > /dev/null 2>&1; then
@@ -325,10 +325,18 @@ handle_bootstrap_import() {
             return 0
         fi
         
-        # Try to import the existing S3 buckets
+        # Import terraform state bucket
+        print_info "Importing: aws_s3_bucket.terraform_state -> $STATE_BUCKET"
         terraform -chdir="$module_path" import -no-color aws_s3_bucket.terraform_state "$STATE_BUCKET" > /dev/null 2>&1 || true
         
-        print_info "Bootstrap resources will be adopted"
+        # Import CloudTrail bucket (find it by pattern)
+        CLOUDTRAIL_BUCKET=$(aws s3 ls --region eu-north-1 2>/dev/null | grep "dev-ztna-audit-logs" | awk '{print $3}' | head -1)
+        if [[ -n "$CLOUDTRAIL_BUCKET" ]]; then
+            print_info "Importing: aws_s3_bucket.cloudtrail_bucket -> $CLOUDTRAIL_BUCKET"
+            terraform -chdir="$module_path" import -no-color aws_s3_bucket.cloudtrail_bucket "$CLOUDTRAIL_BUCKET" > /dev/null 2>&1 || true
+        fi
+        
+        print_success "Bootstrap buckets imported"
     fi
 }
 
