@@ -134,14 +134,41 @@ migrate_bootstrap_to_s3() {
     
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
     STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/bootstrap/terraform.tfstate"
     
     # Check if S3 bucket exists and bootstrap state exists locally
     if [[ -f "$module_path/terraform.tfstate" ]] && aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
-        print_info "Uploading bootstrap state to S3..."
+        # Check if state already exists in S3
+        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            # State exists in S3 - compare with local to see if there are changes
+            print_info "Comparing bootstrap state files..."
+            
+            # Download S3 state to temp file
+            if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/s3_bootstrap_state.json --region eu-north-1 > /dev/null 2>&1; then
+                # Compare checksums
+                LOCAL_CHECKSUM=$(md5sum "$module_path/terraform.tfstate" | awk '{print $1}')
+                S3_CHECKSUM=$(md5sum /tmp/s3_bootstrap_state.json | awk '{print $1}')
+                
+                if [[ "$LOCAL_CHECKSUM" == "$S3_CHECKSUM" ]]; then
+                    print_info "Bootstrap state is unchanged (skipping upload)"
+                    rm -f /tmp/s3_bootstrap_state.json
+                    return 0
+                else
+                    print_info "Bootstrap state has changed - uploading new version..."
+                    # Delete old state file before uploading new one
+                    print_info "Deleting old bootstrap state file from S3..."
+                    aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
+                fi
+                
+                rm -f /tmp/s3_bootstrap_state.json
+            fi
+        else
+            print_info "Uploading bootstrap state to S3 (first time)..."
+        fi
         
         # Upload the local state file to S3
-        if aws s3 cp "$module_path/terraform.tfstate" "s3://${STATE_BUCKET}/dev/bootstrap/terraform.tfstate" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
-            print_success "Bootstrap state uploaded to S3"
+        if aws s3 cp "$module_path/terraform.tfstate" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
+            print_success "Bootstrap state uploaded/updated in S3"
         else
             print_warning "Failed to upload bootstrap state to S3"
         fi
@@ -329,13 +356,13 @@ handle_bootstrap_import() {
         fi
         
         # Import terraform state bucket
-        print_info "Importing: aws_s3_bucket.terraform_state -> $STATE_BUCKET"
+        print_info "Importing: aws_s3_bucket.terraform_state"
         terraform -chdir="$module_path" import -no-color aws_s3_bucket.terraform_state "$STATE_BUCKET" > /dev/null 2>&1 || true
         
         # Import CloudTrail bucket (find it by pattern)
         CLOUDTRAIL_BUCKET=$(aws s3 ls --region eu-north-1 2>/dev/null | grep "dev-ztna-audit-logs" | awk '{print $3}' | head -1)
         if [[ -n "$CLOUDTRAIL_BUCKET" ]]; then
-            print_info "Importing: aws_s3_bucket.cloudtrail_bucket -> $CLOUDTRAIL_BUCKET"
+            print_info "Importing: aws_s3_bucket.cloudtrail_bucket"
             terraform -chdir="$module_path" import -no-color aws_s3_bucket.cloudtrail_bucket "$CLOUDTRAIL_BUCKET" > /dev/null 2>&1 || true
         fi
         
