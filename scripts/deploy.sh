@@ -251,7 +251,22 @@ deploy_module() {
         return 0
     fi
     
-    # Apply the configuration (always run, even if already deployed - to handle updates)
+    # Run plan to check if there are any changes
+    print_info "Checking for changes in $module..."
+    if ! terraform -chdir="$module_path" plan -no-color > /tmp/${module}_plan.log 2>&1; then
+        print_error "$module plan failed"
+        cat /tmp/${module}_plan.log
+        return 1
+    fi
+    
+    # Check if plan shows any changes (look for "Plan:" line)
+    if grep -q "Plan: 0 to add, 0 to change, 0 to destroy" /tmp/${module}_plan.log; then
+        print_info "$module has no changes (skipping apply)"
+        return 0
+    fi
+    
+    # There are changes - apply the configuration
+    print_info "Applying changes to $module..."
     if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
         # Check if this was a create or update
         resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
