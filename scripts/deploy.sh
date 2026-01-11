@@ -195,16 +195,14 @@ deploy_module() {
         handle_monitoring_log_group
     fi
     
-    # Handle bootstrap - import existing S3 buckets if they exist
-    if [[ "$module" == "bootstrap" ]]; then
-        handle_bootstrap_import
-    fi
-    
     print_info "Deploying: $module"
     
-    # Always clean .terraform to force re-initialization when backend block is present
-    if [[ -d "$module_path/.terraform" ]]; then
-        rm -rf "$module_path/.terraform"
+    # For bootstrap, do NOT clean .terraform since we need to import first
+    # For other modules, clean .terraform to force re-initialization
+    if [[ "$module" != "bootstrap" ]]; then
+        if [[ -d "$module_path/.terraform" ]]; then
+            rm -rf "$module_path/.terraform"
+        fi
     fi
     
     # Configure backend if S3 is available (skipped for bootstrap)
@@ -213,6 +211,11 @@ deploy_module() {
     # Initialize the module with backend config if available
     if ! init_module "$module"; then
         return 1
+    fi
+    
+    # Handle bootstrap - import existing S3 buckets AFTER init (needed for import to work)
+    if [[ "$module" == "bootstrap" ]]; then
+        handle_bootstrap_import
     fi
     
     if [[ "$DRY_RUN" == true ]]; then
