@@ -369,22 +369,58 @@ upload_state_to_s3() {
     return 0
 }
 
+# Helper function to upload state to S3 after fresh deployment
+upload_new_state_to_s3() {
+    local module=$1
+    local module_path="$ENVS_DEV_DIR/$module"
+    
+    # Clear cache to re-discover bucket (bootstrap may have just created it)
+    CACHED_STATE_BUCKET=""
+    STATE_BUCKET=$(get_state_bucket)
+    
+    if [[ -z "$STATE_BUCKET" ]]; then
+        print_warning "No S3 bucket available - state not uploaded"
+        return 0
+    fi
+    
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    local state_file="$module_path/terraform.tfstate"
+    
+    # For modules using S3 backend, pull state first
+    if [[ -f "$module_path/backend-config.hcl" ]]; then
+        terraform -chdir="$module_path" state pull > "$state_file" 2>/dev/null || true
+    fi
+    
+    if [[ -f "$state_file" ]]; then
+        print_info "Uploading state to S3 (bucket: $STATE_BUCKET)..."
+        aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
+        if aws s3 cp "$state_file" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
+            print_success "State uploaded to S3"
+        else
+            print_warning "Failed to upload state to S3"
+        fi
+    fi
+    
+    return 0
+}
+
 ################################################################################
 # MAIN DEPLOYMENT FUNCTION
 # Optimized for GitHub Actions (no persistent local storage)
 #
 # Flow:
-# 1. Download state from S3 (if exists) to sync terraform
-# 2. Init terraform with the state
-# 3. Create local plan (compares config vs actual AWS resources)
-# 4. If plan shows changes → Deploy and upload new state to S3
-# 5. If plan shows 0 changes → Skip (AWS matches config)
+# 1. Check if state exists in S3
+# 2. If NO state → Deploy immediately (fresh deployment)
+# 3. If state exists → Download, plan, check for changes
+# 4. If changes needed → Deploy and upload new state to S3
+# 5. If no changes → Skip (AWS matches config)
 ################################################################################
 
 deploy_module() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
     local plan_changes=0
+    local has_cloud_state=false
     
     if [[ ! -d "$module_path" ]]; then
         print_warning "Module directory not found: $module"
@@ -407,25 +443,22 @@ deploy_module() {
     rm -f "$module_path/terraform.tfstate.backup"
     
     # =========================================================================
-    # Step 2: DOWNLOAD STATE FROM S3 (if exists)
-    # This syncs terraform with what's already deployed
+    # Step 2: CHECK IF STATE EXISTS IN S3
     # =========================================================================
     STATE_BUCKET=$(get_state_bucket)
     STATE_KEY="dev/${module}/terraform.tfstate"
     
-    if [[ -n "$STATE_BUCKET" ]]; then
-        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
-            print_info "Downloading existing state from S3 for $module..."
-            if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "$module_path/terraform.tfstate" --region eu-north-1 > /dev/null 2>&1; then
-                print_success "State downloaded from S3"
-            else
-                print_warning "Failed to download state from S3 - will deploy fresh"
-            fi
+    if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        has_cloud_state=true
+        print_info "Found existing state in S3 for $module - downloading..."
+        if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "$module_path/terraform.tfstate" --region eu-north-1 > /dev/null 2>&1; then
+            print_success "State downloaded from S3"
         else
-            print_info "No existing state in S3 for $module (fresh deployment)"
+            print_warning "Failed to download state from S3"
+            has_cloud_state=false
         fi
     else
-        print_info "No S3 state bucket found - will deploy fresh"
+        print_info "No state in cloud for $module - will deploy fresh"
     fi
     
     # =========================================================================
@@ -438,7 +471,36 @@ deploy_module() {
     fi
     
     # =========================================================================
-    # Step 4: CREATE LOCAL PLAN (compares local .tf config vs AWS resources)
+    # Step 4: IF NO CLOUD STATE → DEPLOY IMMEDIATELY (skip plan check)
+    # =========================================================================
+    if [[ "$has_cloud_state" == false ]]; then
+        print_info "No cloud state exists - deploying $module..."
+        
+        # Handle dry-run mode
+        if [[ "$DRY_RUN" == true ]]; then
+            print_info "Resources that would be created:"
+            terraform -chdir="$module_path" plan -no-color 2>&1 | head -50
+            print_success "$module (dry-run completed)"
+            return 0
+        fi
+        
+        # Apply directly
+        if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
+            resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
+            print_success "$module deployed ($resource_count resources)"
+            
+            # Upload state to S3
+            upload_new_state_to_s3 "$module"
+            return 0
+        else
+            print_error "$module deployment failed"
+            cat /tmp/${module}_apply.log
+            return 1
+        fi
+    fi
+    
+    # =========================================================================
+    # Step 5: CLOUD STATE EXISTS → Create plan and check for changes
     # =========================================================================
     print_info "Creating terraform plan for $module..."
     if ! terraform -chdir="$module_path" plan -out=/tmp/${module}_local.tfplan -no-color > /tmp/${module}_plan_output.log 2>&1; then
@@ -449,7 +511,7 @@ deploy_module() {
     fi
     
     # =========================================================================
-    # Step 5: COUNT CHANGES FROM PLAN
+    # Step 6: COUNT CHANGES FROM PLAN
     # =========================================================================
     if [[ -f "/tmp/${module}_local.tfplan" ]]; then
         if terraform -chdir="$module_path" show -json /tmp/${module}_local.tfplan > /tmp/${module}_local_plan.json 2>/dev/null; then
@@ -458,7 +520,7 @@ deploy_module() {
     fi
     
     # =========================================================================
-    # Step 6: DECIDE - Deploy or Skip
+    # Step 7: DECIDE - Deploy or Skip
     # =========================================================================
     if [[ "$plan_changes" -eq 0 ]]; then
         print_success "$module is up-to-date (0 changes)"
@@ -478,7 +540,7 @@ deploy_module() {
     fi
     
     # =========================================================================
-    # Step 7: APPLY CHANGES
+    # Step 8: APPLY CHANGES
     # =========================================================================
     print_info "Applying changes to $module..."
     if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
@@ -492,36 +554,9 @@ deploy_module() {
     fi
     
     # =========================================================================
-    # Step 8: UPLOAD NEW STATE TO S3
+    # Step 9: UPLOAD STATE TO S3
     # =========================================================================
-    # Clear cache to re-discover bucket (bootstrap may have just created it)
-    CACHED_STATE_BUCKET=""
-    STATE_BUCKET=$(get_state_bucket)
-    
-    if [[ -n "$STATE_BUCKET" ]]; then
-        STATE_KEY="dev/${module}/terraform.tfstate"
-        
-        # Get the current state file path
-        local state_file="$module_path/terraform.tfstate"
-        
-        # For modules using S3 backend, pull state first
-        if [[ -f "$module_path/backend-config.hcl" ]]; then
-            terraform -chdir="$module_path" state pull > "$state_file" 2>/dev/null || true
-        fi
-        
-        if [[ -f "$state_file" ]]; then
-            print_info "Uploading state to S3 (bucket: $STATE_BUCKET)..."
-            # Delete old and upload new
-            aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
-            if aws s3 cp "$state_file" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
-                print_success "State uploaded to S3"
-            else
-                print_warning "Failed to upload state to S3"
-            fi
-        fi
-    else
-        print_warning "No S3 bucket available - state not uploaded"
-    fi
+    upload_new_state_to_s3 "$module"
     
     # Cleanup
     rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
