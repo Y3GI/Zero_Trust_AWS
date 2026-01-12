@@ -11,7 +11,7 @@ func TestRBACModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/rbac-authorization",
+		TerraformDir:    "../../envs/test/integration/rbac-authorization",
 		TerraformBinary: "terraform",
 	})
 
@@ -30,7 +30,7 @@ func TestRBACPolicies(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/rbac-authorization",
+		TerraformDir:    "../../envs/test/integration/rbac-authorization",
 		TerraformBinary: "terraform",
 	})
 

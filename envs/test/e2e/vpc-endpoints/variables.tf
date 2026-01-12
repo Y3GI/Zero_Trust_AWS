@@ -1,0 +1,1 @@
+# E2E test - no variables needed (uses local state references)

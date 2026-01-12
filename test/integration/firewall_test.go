@@ -11,7 +11,7 @@ func TestFirewallModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/firewall",
+		TerraformDir:    "../../envs/test/integration/firewall",
 		TerraformBinary: "terraform",
 	})
 
@@ -30,7 +30,7 @@ func TestFirewallNACLs(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/firewall",
+		TerraformDir:    "../../envs/test/integration/firewall",
 		TerraformBinary: "terraform",
 		Vars: map[string]interface{}{
 			"env":               "dev",
@@ -51,7 +51,7 @@ func TestFirewallSecurityGroupRules(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/firewall",
+		TerraformDir:    "../../envs/test/integration/firewall",
 		TerraformBinary: "terraform",
 		Vars: map[string]interface{}{
 			"env":               "dev",

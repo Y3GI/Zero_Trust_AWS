@@ -11,7 +11,7 @@ func TestVPCEndpointsModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/vpc-endpoints",
+		TerraformDir:    "../../envs/test/integration/vpc-endpoints",
 		TerraformBinary: "terraform",
 	})
 
@@ -31,7 +31,7 @@ func TestVPCEndpointsOutputs(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/vpc-endpoints",
+		TerraformDir:    "../../envs/test/integration/vpc-endpoints",
 		TerraformBinary: "terraform",
 	})
 

@@ -1,0 +1,1 @@
+# Integration test - no variables needed (uses mock values)

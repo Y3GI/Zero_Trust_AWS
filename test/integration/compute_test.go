@@ -11,7 +11,7 @@ func TestComputeModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/compute",
+		TerraformDir:    "../../envs/test/integration/compute",
 		TerraformBinary: "terraform",
 	})
 
@@ -31,7 +31,7 @@ func TestComputeEBSEncryption(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/compute",
+		TerraformDir:    "../../envs/test/integration/compute",
 		TerraformBinary: "terraform",
 	})
 
@@ -46,7 +46,7 @@ func TestComputeUserData(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/compute",
+		TerraformDir:    "../../envs/test/integration/compute",
 		TerraformBinary: "terraform",
 	})
 

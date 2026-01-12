@@ -11,7 +11,7 @@ func TestSecretsModule(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/secrets",
+		TerraformDir:    "../../envs/test/integration/secrets",
 		TerraformBinary: "terraform",
 	})
 
@@ -31,7 +31,7 @@ func TestSecretsPasswordComplexity(t *testing.T) {
 	t.Parallel()
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir:    "../../envs/dev/secrets",
+		TerraformDir:    "../../envs/test/integration/secrets",
 		TerraformBinary: "terraform",
 	})
 
