@@ -31,6 +31,9 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.7.5
+          # CRITICAL: Disable wrapper script to prevent ::debug:: output
+          # that corrupts Terraform JSON output parsing in Terratest
+          terraform_wrapper: false
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -62,12 +65,18 @@ jobs:
         run: go test -v -run TestE2ECriticalPath ./... -timeout 30m
         env:
           AWS_DEFAULT_REGION: eu-north-1
+          # Disable Terraform debug output to prevent JSON parsing issues
+          TF_LOG: ""
+          # Ensure wrapper script doesn't interfere with JSON output
+          TERRAFORM_CLI_PATH: ""
 
       - name: Run E2E Full Stack Test
         working-directory: ./test/e2e
         run: go test -v -run TestE2EStackDeployment ./... -timeout 60m
         env:
           AWS_DEFAULT_REGION: eu-north-1
+          TF_LOG: ""
+          TERRAFORM_CLI_PATH: ""
         continue-on-error: true
 
       - name: Initialize CodeQL
