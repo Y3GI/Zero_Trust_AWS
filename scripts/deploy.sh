@@ -416,6 +416,16 @@ upload_new_state_to_s3() {
 # 5. If no changes → Skip (AWS matches config)
 ################################################################################
 
+# Helper function to get terraform var args for a module
+# All modules accept state_bucket variable for consistency
+get_terraform_var_args() {
+    local bucket=$1
+    
+    if [[ -n "$bucket" ]]; then
+        echo "-var state_bucket=$bucket"
+    fi
+}
+
 deploy_module() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
@@ -470,6 +480,9 @@ deploy_module() {
         return 1
     fi
     
+    # Get terraform var args (all modules accept state_bucket)
+    local var_args=$(get_terraform_var_args "$STATE_BUCKET")
+    
     # =========================================================================
     # Step 4: IF NO CLOUD STATE → DEPLOY IMMEDIATELY (skip plan check)
     # =========================================================================
@@ -479,13 +492,13 @@ deploy_module() {
         # Handle dry-run mode
         if [[ "$DRY_RUN" == true ]]; then
             print_info "Resources that would be created:"
-            terraform -chdir="$module_path" plan -no-color 2>&1 | head -50
+            terraform -chdir="$module_path" plan $var_args -no-color 2>&1 | head -50
             print_success "$module (dry-run completed)"
             return 0
         fi
         
         # Apply directly
-        if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
+        if terraform -chdir="$module_path" apply $var_args -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
             resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
             print_success "$module deployed ($resource_count resources)"
             
@@ -503,7 +516,7 @@ deploy_module() {
     # Step 5: CLOUD STATE EXISTS → Create plan and check for changes
     # =========================================================================
     print_info "Creating terraform plan for $module..."
-    if ! terraform -chdir="$module_path" plan -out=/tmp/${module}_local.tfplan -no-color > /tmp/${module}_plan_output.log 2>&1; then
+    if ! terraform -chdir="$module_path" plan $var_args -out=/tmp/${module}_local.tfplan -no-color > /tmp/${module}_plan_output.log 2>&1; then
         print_warning "Plan had issues for $module"
         cat /tmp/${module}_plan_output.log | tail -20
     else
@@ -533,7 +546,7 @@ deploy_module() {
     # Handle dry-run mode
     if [[ "$DRY_RUN" == true ]]; then
         print_info "Changes that would be applied:"
-        terraform -chdir="$module_path" plan -no-color 2>&1 | head -50
+        terraform -chdir="$module_path" plan $var_args -no-color 2>&1 | head -50
         print_success "$module (dry-run completed)"
         rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
         return 0
@@ -543,7 +556,7 @@ deploy_module() {
     # Step 8: APPLY CHANGES
     # =========================================================================
     print_info "Applying changes to $module..."
-    if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
+    if terraform -chdir="$module_path" apply $var_args -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
         resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
         print_success "$module deployed ($resource_count resources)"
     else

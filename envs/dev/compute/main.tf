@@ -12,7 +12,7 @@ data "aws_caller_identity" "current" {}
 data "terraform_remote_state" "vpc_s3" {
     backend = "s3"
     config = {
-        bucket         = "dev-terraform-state-${data.aws_caller_identity.current.account_id}"
+        bucket         = var.state_bucket
         key            = "dev/vpc/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true
@@ -23,7 +23,7 @@ data "terraform_remote_state" "vpc_s3" {
 data "terraform_remote_state" "security_s3" {
     backend = "s3"
     config = {
-        bucket         = "dev-terraform-state-${data.aws_caller_identity.current.account_id}"
+        bucket         = var.state_bucket
         key            = "dev/security/terraform.tfstate"
         region         = "eu-north-1"
         encrypt        = true

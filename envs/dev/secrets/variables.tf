@@ -1,3 +1,9 @@
+variable "state_bucket" {
+    description = "S3 bucket for terraform state (dynamically discovered)"
+    type        = string
+    default     = ""
+}
+
 variable "api_key_1" {
     description = "API Key 1 for external service integration."
     type        = string
