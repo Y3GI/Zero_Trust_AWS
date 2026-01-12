@@ -79,6 +79,34 @@ print_info() {
     echo -e "${BLUE}ℹ $1${NC}"
 }
 
+# Function to find the actual terraform state bucket name
+# Buckets may have random suffixes like dev-terraform-state-abc123
+find_state_bucket() {
+    local region="eu-north-1"
+    
+    # List all buckets and find one matching dev-terraform-state-*
+    local bucket_name
+    bucket_name=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'dev-terraform-state-')].Name" --output text 2>/dev/null | head -1)
+    
+    if [[ -n "$bucket_name" && "$bucket_name" != "None" ]]; then
+        echo "$bucket_name"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Global variable to cache the state bucket name (avoid repeated API calls)
+CACHED_STATE_BUCKET=""
+
+# Function to get the state bucket name (uses cache)
+get_state_bucket() {
+    if [[ -z "$CACHED_STATE_BUCKET" ]]; then
+        CACHED_STATE_BUCKET=$(find_state_bucket)
+    fi
+    echo "$CACHED_STATE_BUCKET"
+}
+
 # Function to check and configure S3 backend if available
 # Falls back to local backend if S3 doesn't exist (recovery scenario)
 configure_backend() {
@@ -90,12 +118,11 @@ configure_backend() {
         return 0
     fi
     
-    # Check if S3 state bucket exists
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    # Find the actual S3 state bucket (may have random suffix)
+    STATE_BUCKET=$(get_state_bucket)
     STATE_KEY="dev/${module}/terraform.tfstate"
     
-    if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+    if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
         print_info "S3 state bucket found (${STATE_BUCKET}), configuring S3 backend..."
         
         # Check if DynamoDB locks table exists (created by data_store)
@@ -132,7 +159,11 @@ EOF
         fi
     else
         # S3 bucket doesn't exist - use local backend
-        print_warning "S3 state bucket not found (${STATE_BUCKET})"
+        if [[ -n "$STATE_BUCKET" ]]; then
+            print_warning "S3 state bucket not accessible (${STATE_BUCKET})"
+        else
+            print_warning "No S3 state bucket found"
+        fi
         
         # Check if we have local state to use
         if [[ -f "$module_path/terraform.tfstate" ]]; then
@@ -232,8 +263,8 @@ fetch_cloud_state() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
     
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
-    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    # Find actual state bucket (may have random suffix)
+    STATE_BUCKET=$(get_state_bucket)
     STATE_KEY="dev/${module}/terraform.tfstate"
     
     # Bootstrap uses local backend but may have state in S3
@@ -244,8 +275,8 @@ fetch_cloud_state() {
             print_info "Using local state for $module"
             return 0
         fi
-        # Check S3 as backup
-        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        # Check S3 as backup (only if bucket exists)
+        if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
             if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" /tmp/${module}_cloud_state.json --region eu-north-1 > /dev/null 2>&1; then
                 # Also restore to local for bootstrap
                 cp /tmp/${module}_cloud_state.json "$module_path/terraform.tfstate"
@@ -256,10 +287,10 @@ fetch_cloud_state() {
         return 1  # No state exists
     fi
     
-    # Other modules: Try S3 first, then fall back to local
-    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+    # Other modules: Try S3 first (if bucket exists), then fall back to local
+    if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
         if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" /tmp/${module}_cloud_state.json --region eu-north-1 > /dev/null 2>&1; then
-            print_info "Using S3 state for $module"
+            print_info "Using S3 state for $module (bucket: $STATE_BUCKET)"
             return 0
         fi
     fi
@@ -280,12 +311,14 @@ upload_state_to_s3() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
     
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
-    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    # Find actual state bucket (may have random suffix)
+    # Re-discover after bootstrap in case it just created the bucket
+    CACHED_STATE_BUCKET=""  # Clear cache to re-discover
+    STATE_BUCKET=$(get_state_bucket)
     STATE_KEY="dev/${module}/terraform.tfstate"
     
     # Check if S3 bucket exists
-    if ! aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+    if [[ -z "$STATE_BUCKET" ]] || ! aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
         # Bucket doesn't exist yet (bootstrap hasn't created it or was deleted)
         if [[ "$module" == "bootstrap" ]]; then
             print_info "S3 bucket will be available after bootstrap completes"
@@ -299,6 +332,8 @@ upload_state_to_s3() {
         fi
         return 0
     fi
+    
+    print_info "Uploading state to S3 bucket: $STATE_BUCKET"
     
     # For bootstrap, upload local state to S3
     if [[ "$module" == "bootstrap" ]]; then
@@ -334,13 +369,22 @@ upload_state_to_s3() {
     return 0
 }
 
-# Main deployment function for ALL modules
-# Unified flow: init -> LOCAL PLAN FIRST -> fetch cloud state -> compare -> apply -> upload state
+################################################################################
+# MAIN DEPLOYMENT FUNCTION
+# Optimized for GitHub Actions (no persistent local storage)
+#
+# Flow:
+# 1. Download state from S3 (if exists) to sync terraform
+# 2. Init terraform with the state
+# 3. Create local plan (compares config vs actual AWS resources)
+# 4. If plan shows changes → Deploy and upload new state to S3
+# 5. If plan shows 0 changes → Skip (AWS matches config)
+################################################################################
+
 deploy_module() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
     local plan_changes=0
-    local has_cloud_state=false
     
     if [[ ! -d "$module_path" ]]; then
         print_warning "Module directory not found: $module"
@@ -354,98 +398,133 @@ deploy_module() {
         handle_monitoring_log_group
     fi
     
-    # Step 1: Clean .terraform for fresh init (except bootstrap which may need local state)
-    if [[ "$module" != "bootstrap" ]]; then
-        rm -rf "$module_path/.terraform"
-        rm -f "$module_path/backend-config.hcl"
+    # =========================================================================
+    # Step 1: CLEAN START (GitHub Actions has no persistent storage)
+    # =========================================================================
+    rm -rf "$module_path/.terraform"
+    rm -f "$module_path/backend-config.hcl"
+    rm -f "$module_path/terraform.tfstate"
+    rm -f "$module_path/terraform.tfstate.backup"
+    
+    # =========================================================================
+    # Step 2: DOWNLOAD STATE FROM S3 (if exists)
+    # This syncs terraform with what's already deployed
+    # =========================================================================
+    STATE_BUCKET=$(get_state_bucket)
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    
+    if [[ -n "$STATE_BUCKET" ]]; then
+        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            print_info "Downloading existing state from S3 for $module..."
+            if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "$module_path/terraform.tfstate" --region eu-north-1 > /dev/null 2>&1; then
+                print_success "State downloaded from S3"
+            else
+                print_warning "Failed to download state from S3 - will deploy fresh"
+            fi
+        else
+            print_info "No existing state in S3 for $module (fresh deployment)"
+        fi
+    else
+        print_info "No S3 state bucket found - will deploy fresh"
     fi
     
-    # Step 2: Configure backend (creates backend-config.hcl for S3 modules, or local if S3 missing)
+    # =========================================================================
+    # Step 3: CONFIGURE BACKEND AND INIT
+    # =========================================================================
     configure_backend "$module"
     
-    # Step 3: Initialize terraform
     if ! init_module "$module"; then
         return 1
     fi
     
     # =========================================================================
-    # Step 4: CREATE LOCAL PLAN FIRST (ALWAYS - before checking cloud state)
-    # This ensures we detect updates in local Terraform config
+    # Step 4: CREATE LOCAL PLAN (compares local .tf config vs AWS resources)
     # =========================================================================
-    print_info "Creating local plan for $module (checking for updates)..."
+    print_info "Creating terraform plan for $module..."
     if ! terraform -chdir="$module_path" plan -out=/tmp/${module}_local.tfplan -no-color > /tmp/${module}_plan_output.log 2>&1; then
-        # Plan failed - show error but continue to check state
-        print_warning "Initial plan had issues for $module"
+        print_warning "Plan had issues for $module"
         cat /tmp/${module}_plan_output.log | tail -20
     else
-        print_success "Local plan created for $module"
+        print_success "Plan created for $module"
     fi
     
-    # Step 5: Convert local plan to JSON and count changes BEFORE fetching cloud state
+    # =========================================================================
+    # Step 5: COUNT CHANGES FROM PLAN
+    # =========================================================================
     if [[ -f "/tmp/${module}_local.tfplan" ]]; then
         if terraform -chdir="$module_path" show -json /tmp/${module}_local.tfplan > /tmp/${module}_local_plan.json 2>/dev/null; then
-            # Count actual changes (not no-op) from the local plan
             plan_changes=$(jq -r '.resource_changes[]? | select(.change.actions != ["no-op"]) | .address' /tmp/${module}_local_plan.json 2>/dev/null | wc -l | tr -d ' ')
-            
-            if [[ "$plan_changes" -gt 0 ]]; then
-                print_info "Local plan detected $plan_changes change(s) for $module"
-            else
-                print_info "Local plan shows no changes for $module"
-            fi
         fi
     fi
     
-    # Step 6: NOW fetch cloud state to compare (after local plan is ready)
-    if fetch_cloud_state "$module"; then
-        has_cloud_state=true
-        print_info "Found existing cloud state for $module"
-    else
-        print_info "No existing cloud state for $module (fresh deployment)"
-    fi
-    
-    # Step 7: Compare and decide
-    print_info "Comparing local plan with cloud state for $module..."
-    
-    if [[ "$plan_changes" -eq 0 ]] && [[ "$has_cloud_state" == true ]]; then
-        # No changes needed - local config matches what's deployed
-        print_success "$module is up-to-date (no changes detected)"
-        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_cloud_state.json
+    # =========================================================================
+    # Step 6: DECIDE - Deploy or Skip
+    # =========================================================================
+    if [[ "$plan_changes" -eq 0 ]]; then
+        print_success "$module is up-to-date (0 changes)"
+        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
         return 0
     fi
     
-    if [[ "$plan_changes" -gt 0 ]]; then
-        print_info "Will apply $plan_changes infrastructure change(s) to $module"
-    elif [[ "$has_cloud_state" == false ]]; then
-        print_info "Fresh deployment for $module"
-    fi
+    print_info "$module has $plan_changes change(s) to apply"
     
-    # Step 8: Handle dry-run mode
+    # Handle dry-run mode
     if [[ "$DRY_RUN" == true ]]; then
         print_info "Changes that would be applied:"
         terraform -chdir="$module_path" plan -no-color 2>&1 | head -50
         print_success "$module (dry-run completed)"
-        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_cloud_state.json
+        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
         return 0
     fi
     
-    # Step 9: Apply changes
+    # =========================================================================
+    # Step 7: APPLY CHANGES
+    # =========================================================================
     print_info "Applying changes to $module..."
     if terraform -chdir="$module_path" apply -auto-approve -no-color > /tmp/${module}_apply.log 2>&1; then
         resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
-        print_success "$module deployed/updated ($resource_count resources)"
+        print_success "$module deployed ($resource_count resources)"
     else
         print_error "$module deployment failed"
-        print_error "Error details:"
         cat /tmp/${module}_apply.log
-        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_cloud_state.json
+        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
         return 1
     fi
     
-    # Step 10: Upload state to S3 (for bootstrap, or verify for others)
-    upload_state_to_s3 "$module"
+    # =========================================================================
+    # Step 8: UPLOAD NEW STATE TO S3
+    # =========================================================================
+    # Clear cache to re-discover bucket (bootstrap may have just created it)
+    CACHED_STATE_BUCKET=""
+    STATE_BUCKET=$(get_state_bucket)
     
-    # Cleanup temp files
-    rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_cloud_state.json
+    if [[ -n "$STATE_BUCKET" ]]; then
+        STATE_KEY="dev/${module}/terraform.tfstate"
+        
+        # Get the current state file path
+        local state_file="$module_path/terraform.tfstate"
+        
+        # For modules using S3 backend, pull state first
+        if [[ -f "$module_path/backend-config.hcl" ]]; then
+            terraform -chdir="$module_path" state pull > "$state_file" 2>/dev/null || true
+        fi
+        
+        if [[ -f "$state_file" ]]; then
+            print_info "Uploading state to S3 (bucket: $STATE_BUCKET)..."
+            # Delete old and upload new
+            aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
+            if aws s3 cp "$state_file" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
+                print_success "State uploaded to S3"
+            else
+                print_warning "Failed to upload state to S3"
+            fi
+        fi
+    else
+        print_warning "No S3 bucket available - state not uploaded"
+    fi
+    
+    # Cleanup
+    rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
     
     return 0
 }
@@ -455,8 +534,8 @@ get_module_status() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
     
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
-    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    # Find actual state bucket (may have random suffix)
+    STATE_BUCKET=$(get_state_bucket)
     STATE_KEY="dev/${module}/terraform.tfstate"
     
     # For bootstrap, also check local state (it uses local backend)
@@ -470,7 +549,7 @@ get_module_status() {
         fi
         
         # Also check if state exists in S3 (bootstrap uploads after deploy)
-        if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
             if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/bootstrap_state.json --region eu-north-1 > /dev/null 2>&1; then
                 if grep -q '"type":' /tmp/bootstrap_state.json 2>/dev/null; then
                     rm -f /tmp/bootstrap_state.json
@@ -485,8 +564,17 @@ get_module_status() {
         return
     fi
     
-    # For other modules, check S3 state and actually query with terraform
-    if aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+    # For other modules, check local state first, then S3
+    # Check local state
+    if [[ -f "$module_path/terraform.tfstate" ]]; then
+        if grep -q '"type":' "$module_path/terraform.tfstate" 2>/dev/null; then
+            echo "DEPLOYED"
+            return
+        fi
+    fi
+    
+    # Check S3 state (if bucket exists)
+    if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
         # State file exists in S3
         # Initialize terraform temporarily to check state
         if [[ -d "$module_path" ]]; then
