@@ -11,7 +11,7 @@ data "aws_caller_identity" "current" {}
 # ===============================================
 
 resource "aws_s3_bucket" "terraform_state" {
-    bucket        = "${var.env}-terraform-state-${data.aws_caller_identity.current.account_id}"
+    bucket        = "${var.env}-terraform-state-${random_id.trail_suffix.hex}"
     force_destroy = true # Only for Dev; remove for Prod
     tags          = var.tags
     
