@@ -438,8 +438,8 @@ func TestE2ECriticalPath(t *testing.T) {
 		tfStateBucket := safeOutput(t, terraformOptions, "terraform_state_bucket_name")
 		assert.NotEmpty(t, tfStateBucket, "Terraform state bucket must exist")
 
-		kmsKeyID := safeOutput(t, terraformOptions, "kms_key_id")
-		assert.NotEmpty(t, kmsKeyID, "KMS key must exist for downstream modules")
+		cloudtrailBucket := safeOutput(t, terraformOptions, "cloudtrail_bucket_name")
+		assert.NotEmpty(t, cloudtrailBucket, "CloudTrail bucket must exist for audit logging")
 	})
 
 	// 2. Deploy Security
@@ -468,6 +468,9 @@ func TestE2ECriticalPath(t *testing.T) {
 
 		instanceProfile := safeOutput(t, terraformOptions, "app_instance_profile_name")
 		assert.NotEmpty(t, instanceProfile, "Instance profile must exist for compute")
+
+		kmsKeyID := safeOutput(t, terraformOptions, "kms_key_id")
+		assert.NotEmpty(t, kmsKeyID, "KMS key must exist for downstream modules")
 	})
 
 	// 3. Deploy VPC
