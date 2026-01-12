@@ -425,7 +425,7 @@ func TestE2ECriticalPath(t *testing.T) {
 		})
 
 		// Deploy first, then mark as deployed for cleanup
-		if err := terraform.InitAndApplyE(t, terraformOptions); err != nil {
+		if _, err := terraform.InitAndApplyE(t, terraformOptions); err != nil {
 			deployFailed = true
 			t.Fatalf("Bootstrap deployment failed: %v", err)
 		}
@@ -454,7 +454,7 @@ func TestE2ECriticalPath(t *testing.T) {
 			NoColor:         true,
 		})
 
-		if err := terraform.InitAndApplyE(t, terraformOptions); err != nil {
+		if _, err := terraform.InitAndApplyE(t, terraformOptions); err != nil {
 			deployFailed = true
 			t.Fatalf("Security deployment failed: %v", err)
 		}
@@ -482,7 +482,7 @@ func TestE2ECriticalPath(t *testing.T) {
 			NoColor:         true,
 		})
 
-		if err := terraform.InitAndApplyE(t, terraformOptions); err != nil {
+		if _, err := terraform.InitAndApplyE(t, terraformOptions); err != nil {
 			deployFailed = true
 			t.Fatalf("VPC deployment failed: %v", err)
 		}
