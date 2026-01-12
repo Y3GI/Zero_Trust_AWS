@@ -369,7 +369,9 @@ upload_state_to_s3() {
     return 0
 }
 
-# Helper function to upload state to S3 after fresh deployment
+# Helper function to upload state to S3 after deployment
+# NOTE: For modules using S3 backend, terraform auto-saves to S3, so this is mainly
+# for bootstrap (which uses local backend) or recovery scenarios
 upload_new_state_to_s3() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
@@ -384,17 +386,26 @@ upload_new_state_to_s3() {
     fi
     
     STATE_KEY="dev/${module}/terraform.tfstate"
-    local state_file="$module_path/terraform.tfstate"
     
-    # For modules using S3 backend, pull state first
+    # For modules using S3 backend, terraform already saved state to S3
+    # We only need to manually upload for modules using local backend (bootstrap)
     if [[ -f "$module_path/backend-config.hcl" ]]; then
-        terraform -chdir="$module_path" state pull > "$state_file" 2>/dev/null || true
+        # S3 backend - terraform already uploaded state, nothing to do
+        print_info "State auto-saved to S3 by terraform"
+        return 0
     fi
     
-    if [[ -f "$state_file" ]]; then
-        print_info "Uploading state to S3 (bucket: $STATE_BUCKET)..."
+    # For bootstrap (local backend), upload local state to S3
+    if [[ -f "$module_path/terraform.tfstate" ]]; then
+        # Validate it's valid JSON before uploading
+        if ! jq -e '.version' "$module_path/terraform.tfstate" > /dev/null 2>&1; then
+            print_warning "Local state is not valid JSON - skipping upload"
+            return 0
+        fi
+        
+        print_info "Uploading local state to S3 (bucket: $STATE_BUCKET)..."
         aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
-        if aws s3 cp "$state_file" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
+        if aws s3 cp "$module_path/terraform.tfstate" "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 --sse AES256 > /dev/null 2>&1; then
             print_success "State uploaded to S3"
         else
             print_warning "Failed to upload state to S3"
@@ -467,7 +478,9 @@ deploy_module() {
                 print_info "Found valid state in S3 for $module"
                 # Don't copy to local - let terraform use S3 backend directly
             else
-                print_warning "State file in S3 is corrupted - will deploy fresh"
+                print_warning "State file in S3 is corrupted - deleting and deploying fresh"
+                # DELETE the corrupted state from S3 so terraform doesn't try to read it
+                aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || true
                 rm -f "/tmp/${module}_state.json"
             fi
         else
