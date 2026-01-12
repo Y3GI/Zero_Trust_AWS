@@ -459,13 +459,19 @@ deploy_module() {
     STATE_KEY="dev/${module}/terraform.tfstate"
     
     if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
-        has_cloud_state=true
-        print_info "Found existing state in S3 for $module - downloading..."
-        if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "$module_path/terraform.tfstate" --region eu-north-1 > /dev/null 2>&1; then
-            print_success "State downloaded from S3"
+        # Download to temp file first to validate
+        if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "/tmp/${module}_state.json" --region eu-north-1 > /dev/null 2>&1; then
+            # Validate it's proper JSON with terraform state structure
+            if jq -e '.version' "/tmp/${module}_state.json" > /dev/null 2>&1; then
+                has_cloud_state=true
+                print_info "Found valid state in S3 for $module"
+                # Don't copy to local - let terraform use S3 backend directly
+            else
+                print_warning "State file in S3 is corrupted - will deploy fresh"
+                rm -f "/tmp/${module}_state.json"
+            fi
         else
-            print_warning "Failed to download state from S3"
-            has_cloud_state=false
+            print_info "No state in S3 for $module - will deploy fresh"
         fi
     else
         print_info "No state in cloud for $module - will deploy fresh"
@@ -572,81 +578,40 @@ deploy_module() {
     upload_new_state_to_s3 "$module"
     
     # Cleanup
-    rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
+    rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_state.json
     
     return 0
 }
 
-# Function to get module status from S3 state (not local)
+# Function to get module status from S3 state - simplified version
 get_module_status() {
     local module=$1
-    local module_path="$ENVS_DEV_DIR/$module"
     
-    # Find actual state bucket (may have random suffix)
+    # Find actual state bucket
     STATE_BUCKET=$(get_state_bucket)
     STATE_KEY="dev/${module}/terraform.tfstate"
     
-    # For bootstrap, also check local state (it uses local backend)
-    if [[ "$module" == "bootstrap" ]]; then
-        # Check local state first
-        if [[ -f "$module_path/terraform.tfstate" ]]; then
-            if grep -q '"type":' "$module_path/terraform.tfstate" 2>/dev/null; then
-                echo "DEPLOYED"
-                return
-            fi
-        fi
-        
-        # Also check if state exists in S3 (bootstrap uploads after deploy)
-        if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
-            if aws s3api get-object --bucket "${STATE_BUCKET}" --key "${STATE_KEY}" /tmp/bootstrap_state.json --region eu-north-1 > /dev/null 2>&1; then
-                if grep -q '"type":' /tmp/bootstrap_state.json 2>/dev/null; then
-                    rm -f /tmp/bootstrap_state.json
-                    echo "DEPLOYED"
-                    return
-                fi
-                rm -f /tmp/bootstrap_state.json
-            fi
-        fi
-        
+    # No bucket = not deployed
+    if [[ -z "$STATE_BUCKET" ]]; then
         echo "NOT_DEPLOYED"
         return
     fi
     
-    # For other modules, check local state first, then S3
-    # Check local state
-    if [[ -f "$module_path/terraform.tfstate" ]]; then
-        if grep -q '"type":' "$module_path/terraform.tfstate" 2>/dev/null; then
+    # Check if state file exists in S3
+    if ! aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+        echo "NOT_DEPLOYED"
+        return
+    fi
+    
+    # Download and validate the state file
+    if aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" "/tmp/${module}_status_check.json" --region eu-north-1 > /dev/null 2>&1; then
+        # Check if it's valid JSON with resources
+        if jq -e '.resources | length > 0' "/tmp/${module}_status_check.json" > /dev/null 2>&1; then
+            rm -f "/tmp/${module}_status_check.json"
             echo "DEPLOYED"
             return
         fi
-    fi
-    
-    # Check S3 state (if bucket exists)
-    if [[ -n "$STATE_BUCKET" ]] && aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
-        # State file exists in S3
-        # Initialize terraform temporarily to check state
-        if [[ -d "$module_path" ]]; then
-            # Create a temporary backend config
-            cat > "$module_path/backend-config.hcl" << EOF
-bucket         = "${STATE_BUCKET}"
-key            = "${STATE_KEY}"
-region         = "eu-north-1"
-encrypt        = true
-skip_credentials_validation = true
-EOF
-            
-            # Initialize quietly (without .terraform output)
-            if terraform -chdir="$module_path" init -reconfigure -backend-config=backend-config.hcl -no-color -input=false > /dev/null 2>&1; then
-                # Use terraform to check state list
-                if terraform -chdir="$module_path" state list > /dev/null 2>&1; then
-                    resource_count=$(terraform -chdir="$module_path" state list 2>/dev/null | wc -l | tr -d ' ')
-                    if [[ "$resource_count" -gt 0 ]]; then
-                        echo "DEPLOYED"
-                        return
-                    fi
-                fi
-            fi
-        fi
+        rm -f "/tmp/${module}_status_check.json"
     fi
     
     echo "NOT_DEPLOYED"
