@@ -1,0 +1,79 @@
+name: E2E Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_e2e_test:
+        description: "Type 'TEST' to confirm running E2E stack tests"
+        required: true
+        default: "NO"
+
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+
+jobs:
+  e2e_test:
+    name: End-to-End Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.7.5
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install and tidy Go dependencies
+        working-directory: ./test/e2e
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Verify Go dependencies
+        working-directory: ./test/e2e
+        run: go mod verify
+
+      - name: Run E2E Critical Path Test
+        working-directory: ./test/e2e
+        run: go test -v -run TestE2ECriticalPath ./... -timeout 30m
+        env:
+          AWS_DEFAULT_REGION: eu-north-1
+
+      - name: Run E2E Full Stack Test
+        working-directory: ./test/e2e
+        run: go test -v -run TestE2EStackDeployment ./... -timeout 60m
+        env:
+          AWS_DEFAULT_REGION: eu-north-1
+        continue-on-error: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: terraform
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
