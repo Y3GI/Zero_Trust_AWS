@@ -1,1 +1,0 @@
-cd /Users/y3gi/uni_projects/sem_3/Zero_Trust_AWS && for dir in envs/dev/*/; do echo "Initializing $(basename "$dir")..."; terraform -chdir="$dir" init -upgrade 2>&1 | grep -E "(Initializing|Downloading|✓|✗|Error)" | head -5; done

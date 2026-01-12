@@ -207,7 +207,114 @@ init_module() {
     return 0
 }
 
-# Function to compare local state with S3 and decide if deployment is needed
+# Function to compare local plan with cloud state and sync if needed
+# Works for ALL modules - detects plan differences and resyncs state if needed
+compare_and_sync_state() {
+    local module=$1
+    local module_path="$ENVS_DEV_DIR/$module"
+    local STATE_BUCKET STATE_KEY
+    
+    print_info "Creating local plan for $module..."
+    
+    # Generate binary plan
+    if ! terraform -chdir="$module_path" plan -out=/tmp/${module}_local.tfplan -no-color > /dev/null 2>&1; then
+        print_error "Failed to create plan for $module"
+        return 0  # Continue anyway
+    fi
+    
+    # Convert plan to JSON for comparison
+    if ! terraform -chdir="$module_path" show -json /tmp/${module}_local.tfplan > /tmp/${module}_local_plan.json 2>/dev/null; then
+        print_warning "Could not generate plan JSON for $module"
+        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
+        return 0
+    fi
+    
+    # Determine S3 bucket and key based on module
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+    STATE_BUCKET="dev-terraform-state-${ACCOUNT_ID}"
+    STATE_KEY="dev/${module}/terraform.tfstate"
+    
+    # For bootstrap, also check if we're using the local backend
+    if [[ "$module" == "bootstrap" ]]; then
+        # Bootstrap uses local backend, but state may be in S3
+        if [[ -f "$module_path/terraform.tfstate" ]]; then
+            # Use local state for comparison
+            cp "$module_path/terraform.tfstate" /tmp/${module}_cloud_state.json
+        elif aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            # Download S3 state for comparison
+            aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" /tmp/${module}_cloud_state.json --region eu-north-1 > /dev/null 2>&1 || true
+        else
+            # No cloud state exists yet
+            print_info "No existing state for $module - will deploy fresh"
+            rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
+            return 0
+        fi
+    else
+        # Other modules use S3 backend
+        if ! aws s3 ls "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1; then
+            # No S3 state exists yet
+            print_info "No existing S3 state for $module - will deploy fresh"
+            rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
+            return 0
+        fi
+        
+        # Download S3 state for comparison
+        if ! aws s3 cp "s3://${STATE_BUCKET}/${STATE_KEY}" /tmp/${module}_cloud_state.json --region eu-north-1 > /dev/null 2>&1; then
+            print_warning "Could not download S3 state for $module"
+            rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json
+            return 0
+        fi
+    fi
+    
+    # Compare local plan with cloud state
+    print_info "Comparing local plan with cloud state for $module..."
+    
+    # Extract resource changes from local plan
+    local_resources=$(jq -r '.resource_changes[]? | "\(.type).\(.name)"' /tmp/${module}_local_plan.json 2>/dev/null | sort | uniq)
+    
+    # Extract resources from cloud state
+    cloud_resources=$(jq -r '.resources[]? | "\(.type).\(.name)"' /tmp/${module}_cloud_state.json 2>/dev/null | sort | uniq)
+    
+    # Check if plan shows any changes (add, change, or destroy)
+    plan_changes=$(jq -r '.resource_changes[]? | select(.change.actions != ["no-op"]) | .address' /tmp/${module}_local_plan.json 2>/dev/null | wc -l)
+    
+    if [[ $plan_changes -gt 0 ]]; then
+        print_warning "Detected $plan_changes infrastructure changes in $module"
+        print_info "Plan differences detected - syncing state..."
+        
+        # Delete old cloud state
+        if [[ "$module" == "bootstrap" ]]; then
+            # For bootstrap, delete S3 state if it exists
+            if aws s3 ls "s3://${STATE_BUCKET}" --region eu-north-1 > /dev/null 2>&1; then
+                print_info "Clearing old S3 state for $module..."
+                aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || print_warning "Old S3 state may not exist"
+            fi
+            # Clear local state
+            rm -f "$module_path/terraform.tfstate" "$module_path/terraform.tfstate.backup"
+        else
+            # For other modules, delete S3 state
+            print_info "Clearing old S3 state for $module..."
+            aws s3 rm "s3://${STATE_BUCKET}/${STATE_KEY}" --region eu-north-1 > /dev/null 2>&1 || print_warning "Failed to remove S3 state"
+        fi
+        
+        # Clear local terraform cache
+        rm -rf "$module_path/.terraform"
+        rm -f "$module_path/backend-config.hcl"
+        
+        print_success "State synced for $module - will redeploy with new configuration"
+        
+        # Cleanup temp files
+        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_cloud_state.json
+        
+        return 1  # Signal to reinitialize and redeploy
+    else
+        print_success "$module plan matches cloud state (no changes needed)"
+        rm -f /tmp/${module}_local.tfplan /tmp/${module}_local_plan.json /tmp/${module}_cloud_state.json
+        return 0
+    fi
+}
+
+# Function to handle infrastructure changes for ANY module
 check_state_changes() {
     local module=$1
     local module_path="$ENVS_DEV_DIR/$module"
@@ -283,11 +390,8 @@ deploy_module() {
     # Handle bootstrap - restore state from S3 if unchanged
     if [[ "$module" == "bootstrap" ]]; then
         handle_bootstrap_import
-        # If bootstrap state was adopted from S3 (no changes), skip deployment
-        if [[ "$BOOTSTRAP_STATE_ADOPTED" == true ]]; then
-            print_success "bootstrap already up-to-date (no changes needed)"
-            return 0
-        fi
+        # If bootstrap state was adopted from S3, continue to deployment
+        # The generic handle_infrastructure_changes will determine if redeploy is needed
     fi
     
     # Check if state has changed compared to S3 (for all non-bootstrap modules)
@@ -295,6 +399,15 @@ deploy_module() {
         if ! check_state_changes "$module"; then
             print_success "$module already up-to-date (no changes needed)"
             return 0
+        fi
+    fi
+    
+    # Compare local plan with cloud state for ALL modules
+    if ! compare_and_sync_state "$module"; then
+        # Plan differences detected - state was cleared, reinitialize and continue
+        print_info "Reinitializing $module after state sync..."
+        if ! init_module "$module"; then
+            return 1
         fi
     fi
     
